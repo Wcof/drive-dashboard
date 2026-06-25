@@ -32,7 +32,7 @@ const gimbal = ATTACHMENT_SUMMARY_BASE.gimbals
   <!-- 总体运营概览 -->
   <section class="overview card">
     <div class="card-header">
-      <h3 class="panel-title">总体运行概览</h3>
+      <h3 class="panel-title">总体运营概览</h3>
     </div>
     <div class="kpi-grid">
       <!-- 机器人总数 -->
