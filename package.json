@@ -1,0 +1,29 @@
+{
+  "name": "drive-dashboard",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "厂区安全风险态势指挥大屏",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vue-tsc && vite build",
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "mapbox-gl": "^3.9.4",
+    "vue": "^3.5.13"
+  },
+  "devDependencies": {
+    "@types/geojson": "^7946.0.16",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "@vitest/coverage-v8": "^4.1.9",
+    "happy-dom": "^20.10.6",
+    "typescript": "~5.6.2",
+    "vite": "^6.0.1",
+    "vitest": "^4.1.9",
+    "vue-tsc": "^2.1.10"
+  }
+}

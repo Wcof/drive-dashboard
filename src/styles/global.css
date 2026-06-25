@@ -1,0 +1,251 @@
+/* 全局 HUD 样式 —— 钛金深色科技风（参考 safety-dashboard 设计语言） */
+:root {
+  /* 背景 */
+  --hud-bg: #05080E;
+  --hud-bg-deep: #05080E;
+  --hud-bg-elev: rgba(10, 16, 26, 0.85);
+  --hud-bg-panel: rgba(10, 16, 26, 0.78);
+
+  /* 边框 */
+  --hud-border: rgba(107, 142, 173, 0.2);
+  --hud-border-subtle: rgba(107, 142, 173, 0.2);
+  --hud-border-focus: rgba(197, 168, 123, 0.4);
+
+  /* 文本 */
+  --hud-text: #E2E8F0;
+  --hud-text-dim: #94A3B8;
+  --hud-text-faint: #475569;
+
+  /* 强调色 —— 钛金 + 雾蓝 */
+  --hud-accent: #C5A87B;          /* 钛金 */
+  --hud-accent-dim: rgba(197, 168, 123, 0.4);
+  --hud-accent-smog: #6B8EAD;     /* 雾蓝 */
+
+  /* 状态色 */
+  --hud-warn: #F59E0B;
+  --hud-danger: #EF4444;
+  --hud-info: #3B82F6;
+  --hud-ok: #10B981;
+  --hud-gray: #475569;
+
+  /* 字体 */
+  --hud-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --hud-text-font: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body, #app {
+  max-width: 100%;
+  height: 100%;
+  width: 100%;
+  background: var(--hud-bg-deep);
+  color: var(--hud-text);
+  font-family: var(--hud-text-font);
+  overflow: hidden;
+}
+
+#app { display: flex; flex-direction: column; position: relative; }
+
+/* 全局滚动条 —— 钛金悬浮 */
+*::-webkit-scrollbar { width: 0.0800rem; height: 0.0800rem; background: transparent; }
+*::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.03); border: 0; }
+*::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.35); border-radius: 9.9900rem; border: 0; box-shadow: none; }
+*::-webkit-scrollbar-thumb:hover { background: rgba(197, 168, 123, 0.45); }
+
+/* 通用：面板标题前置蓝色竖条 */
+.panel-title,
+.section-title {
+  font-size: 0.1400rem;
+  font-weight: 500;
+  color: var(--hud-text);
+  display: flex;
+  align-items: center;
+}
+.panel-title::before,
+.section-title::before {
+  content: "";
+  display: inline-block;
+  width: 0.0300rem;
+  height: 0.1300rem;
+  background: #00E5FF;
+  box-shadow: 0 0 0.0800rem rgba(0, 229, 255, 0.8);
+  margin-right: 0.0800rem;
+  border-radius: 0.0150rem;
+}
+
+/* 通用卡片 */
+.card {
+  background: var(--hud-bg-elev);
+  border: 1px solid var(--hud-border-subtle);
+  border-radius: 0.0400rem;
+  padding: 0.1600rem;
+  backdrop-filter: blur(0.1200rem);
+  display: flex;
+  flex-direction: column;
+  gap: 0.1000rem;
+}
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.card.focus-border {
+  border-color: var(--hud-border-focus);
+  background: rgba(10, 16, 26, 0.95);
+}
+
+/* 通用标签 */
+.tag {
+  font-size: 0.1100rem; padding: 0.0200rem 0.0800rem; border-radius: 0.0200rem;
+  border: 1px solid transparent; cursor: pointer;
+}
+.tag.gold { color: var(--hud-accent); border-color: var(--hud-border-focus); background: rgba(197, 168, 123, 0.1); }
+
+/* 通用状态点 */
+.dot { display: inline-block; width: 0.0600rem; height: 0.0600rem; border-radius: 50%; margin-right: 0.0600rem; }
+.dot.smog { background: var(--hud-accent-smog); }
+.dot.safe { background: var(--hud-ok); }
+.dot.charging { background: var(--hud-info); }
+.dot.danger { background: var(--hud-danger); }
+
+/* 通用高亮 */
+.highlight { color: var(--hud-accent) !important; }
+.safe-txt { color: var(--hud-ok); }
+.danger-txt { color: var(--hud-danger); }
+.warn-txt { color: var(--hud-warn); }
+.dim { color: var(--hud-text-faint) !important; }
+
+/* 通用按钮 */
+.btn {
+  padding: 0.0500rem 0.1400rem; border: 1px solid var(--hud-border); background: transparent;
+  color: var(--hud-text-dim); cursor: pointer; border-radius: 9.9900rem; font-size: 0.1100rem;
+  transition: all 0.2s ease;
+}
+.btn:hover { border-color: var(--hud-border-focus); color: var(--hud-accent); }
+
+/* Mapbox/Maplibre 控件样式覆盖 */
+.mapboxgl-ctrl-group,
+.maplibregl-ctrl-group {
+  border: 1px solid var(--hud-border-subtle) !important;
+  box-shadow: none !important;
+  background: rgba(10, 16, 26, 0.85) !important;
+}
+.mapboxgl-ctrl-group button,
+.maplibregl-ctrl-group button {
+  border: 0 !important;
+  border-bottom: 1px solid rgba(255,255,255,0.06) !important;
+  background: transparent !important;
+}
+.mapboxgl-ctrl-group button:last-child,
+.maplibregl-ctrl-group button:last-child {
+  border-bottom: 0 !important;
+}
+
+/* Map popup 覆盖 */
+.maplibregl-popup-content {
+  background: rgba(10, 16, 26, 0.96) !important;
+  border: 1px solid var(--hud-accent) !important;
+  border-radius: 0.0600rem !important;
+  padding: 0 !important;
+  box-shadow: 0 0.1200rem 0.4000rem rgba(0,0,0,0.6), 0 0 0.2000rem rgba(197,168,123,0.08) !important;
+  backdrop-filter: blur(0.1600rem);
+  max-width: 3.4000rem;
+  color: var(--hud-text);
+}
+.maplibregl-popup-tip { border-top-color: var(--hud-accent) !important; }
+.maplibregl-popup-close-button { color: var(--hud-text-dim) !important; font-size: 0.2000rem !important; }
+.maplibregl-popup-close-button:hover { color: var(--hud-accent) !important; }
+
+/* === 弹窗通用指挥大屏样式 === */
+.modal-mask {
+  position: fixed; inset: 0; z-index: 9999;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(2, 4, 8, 0.78);
+  backdrop-filter: blur(0.1200rem);
+  animation: modalFade 0.22s ease;
+}
+@keyframes modalFade { from { opacity: 0; } to { opacity: 1; } }
+.modal {
+  position: relative;
+  background: linear-gradient(180deg, rgba(12, 18, 30, 0.98) 0%, rgba(8, 12, 22, 0.98) 100%);
+  border: 1px solid rgba(197, 168, 123, 0.32);
+  border-radius: 0.1000rem;
+  padding: 0.2600rem 0.2800rem 0.2200rem;
+  min-width: 4.2000rem; max-width: 5.6000rem;
+  backdrop-filter: blur(0.1600rem);
+  box-shadow: 0 0.2400rem 0.6000rem rgba(0, 0, 0, 0.7), 0 0 0.2400rem rgba(197, 168, 123, 0.06);
+  animation: modalSlide 0.26s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+@keyframes modalSlide { from { opacity: 0; transform: translateY(0.1600rem) scale(0.97); } to { opacity: 1; transform: none; } }
+.modal::before {
+  content: ""; position: absolute; top: 0; left: 0.2200rem; right: 0.2200rem; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(197, 168, 123, 0.7) 50%, transparent);
+}
+.modal::after {
+  content: ""; position: absolute; left: 0; bottom: -1px; width: 0.6000rem; height: 0.0200rem;
+  background: linear-gradient(90deg, var(--hud-accent), transparent);
+  border-radius: 0 0.0200rem 0.0200rem 0;
+}
+.modal__title {
+  display: flex; align-items: center; gap: 0.1000rem;
+  font-size: 0.1600rem; font-weight: 600; letter-spacing: 1px;
+  color: var(--hud-accent); margin-bottom: 0.1800rem;
+  padding-bottom: 0.1400rem; border-bottom: 1px solid rgba(107, 142, 173, 0.18);
+}
+.modal__title::before {
+  content: ""; display: inline-block; width: 0.0300rem; height: 0.1600rem;
+  background: var(--hud-accent); border-radius: 1px;
+}
+.modal__body { color: var(--hud-text); font-size: 0.1300rem; margin-bottom: 0.2000rem; }
+.modal__actions { display: flex; gap: 0.1000rem; justify-content: flex-end; padding-top: 0.0400rem; }
+.modal .btn {
+  padding: 0.0800rem 0.2200rem; border: 1px solid rgba(107, 142, 173, 0.32);
+  background: transparent; color: var(--hud-text-dim);
+  cursor: pointer; border-radius: 0.0600rem; font-size: 0.1200rem;
+  letter-spacing: 1px; transition: all 0.2s ease;
+}
+.modal .btn:hover { border-color: var(--hud-border-focus); color: var(--hud-text); background: rgba(197, 168, 123, 0.06); }
+.modal .btn--confirm { color: var(--hud-accent); border-color: rgba(197, 168, 123, 0.55); background: rgba(197, 168, 123, 0.08); }
+.modal .btn--confirm:hover { background: rgba(197, 168, 123, 0.18); box-shadow: 0 0 0.1200rem rgba(197, 168, 123, 0.2); }
+.modal .btn--confirm:disabled { opacity: 0.35; cursor: not-allowed; box-shadow: none; }
+
+/* 弹窗内表单 */
+.modal .form-row { margin-top: 0.1200rem; display: flex; flex-direction: column; gap: 0.0600rem; }
+.modal .form-row label { color: var(--hud-text-dim); font-size: 0.1100rem; letter-spacing: 1px; }
+.modal .form-row input, .modal .form-row textarea, .modal .form-row select {
+  background: rgba(5, 8, 14, 0.7);
+  border: 1px solid rgba(107, 142, 173, 0.22);
+  color: var(--hud-text); padding: 0.0800rem 0.1200rem;
+  border-radius: 0.0600rem; font-size: 0.1300rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  resize: none;
+}
+.modal .form-row input:focus, .modal .form-row textarea:focus, .modal .form-row select:focus {
+  outline: none; border-color: rgba(197, 168, 123, 0.55);
+  box-shadow: 0 0 0 0.0200rem rgba(197, 168, 123, 0.1);
+}
+.modal .hint {
+  color: var(--hud-text-faint); font-size: 0.1100rem; margin-top: 0.1000rem;
+  padding: 0.0800rem 0.1200rem; background: rgba(107, 142, 173, 0.06);
+  border-radius: 0.0600rem; border-left: 0.0200rem solid var(--hud-accent-smog);
+}
+
+/* 弹窗内信息块 */
+.modal .info-block {
+  display: flex; align-items: center; gap: 0.1000rem;
+  padding: 0.1000rem 0.1400rem; margin-bottom: 0.1600rem;
+  background: rgba(107, 142, 173, 0.08);
+  border-left: 0.0300rem solid var(--hud-accent-smog);
+  border-radius: 0 0.0600rem 0.0600rem 0;
+  font-size: 0.1200rem; color: var(--hud-text-dim);
+}
+.modal .warn-block {
+  padding: 0.1000rem 0.1400rem; margin-bottom: 0.1600rem;
+  background: rgba(245, 158, 11, 0.08);
+  border-left: 0.0300rem solid var(--hud-warn);
+  border-radius: 0 0.0600rem 0.0600rem 0;
+  font-size: 0.1200rem; color: var(--hud-warn);
+}
+.modal .desc { color: var(--hud-text); margin-bottom: 0.1400rem; line-height: 1.6; }
+
