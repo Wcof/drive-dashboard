@@ -14,6 +14,7 @@ import { alertColor, alertSize, shouldFlash } from "@/utils/alertSymbol"
 import { AlertStatus } from "@/types/alert"
 import { useAssetLayer } from "@/map/useAssetLayer"
 import { useDeckOverlay } from "@/map/useEffectLayer"
+import { useInfrastructureLayer } from "@/map/useInfrastructureLayer"
 // 整改计划第七节拆分：/map composables 已抽出（useMapStyle/use3DLayer/useRobotLayer/useAlarmLayer/useAssetLayer/useEffectLayer/useMapboxBase）
 // MapStage 暂保留内联渲染逻辑以避免大范围重写引入回归，composable 作为可复用模块供后续渐进迁移
 
@@ -25,6 +26,7 @@ const { selectedRobot } = useSelectedRobot()
 const dash = useDashboard()
 const { assetsGeoJSON } = useAssetLayer()
 const deck = useDeckOverlay()
+const infra = useInfrastructureLayer()
 
 // Track HTML Markers for robots / docks / ap / inspection points / alerts
 const markersMap = new Map<string, mapboxgl.Marker>()
@@ -522,6 +524,9 @@ function setupLayers(): void {
 
   // 启动流光动画
   startFlowAnimation()
+
+  // P0 infrastructure models —— 整改计划第二节 3D Scene Layer 第 3 项（道路网络/管线/围墙/灯柱）
+  infra.addInfrastructureLayers(m)
 
   // P1 robot pulse —— Mapbox circle layer zoom 感知（整改计划第五节 circle-radius 6→14）
   m.addLayer({
