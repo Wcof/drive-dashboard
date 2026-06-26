@@ -42,6 +42,22 @@ const RISK_POINTS: { position: [number, number]; color: [number, number, number]
   { position: [121.4745, 31.2308], color: [16, 185, 129], radius: 30 },
 ]
 
+// 区域扫描扩散圆心（整改计划第六节"区域扫描扩散"）—— 多点位周期性扩散环
+const SCAN_CENTERS: { position: [number, number]; color: [number, number, number] }[] = [
+  { position: [121.4740, 31.2304], color: [0, 245, 255] },
+  { position: [121.4755, 31.2300], color: [0, 229, 255] },
+  { position: [121.4735, 31.2298], color: [124, 92, 255] },
+]
+
+// 设备状态传播点（整改计划第六节"设备状态传播效果"）—— 设备节点 + 脉冲传播
+const DEVICE_NODES: { position: [number, number]; color: [number, number, number]; status: number }[] = [
+  { position: [121.4768, 31.2295], color: [239, 68, 68], status: 0 },    // danger
+  { position: [121.4745, 31.2308], color: [16, 185, 129], status: 1 },   // normal
+  { position: [121.4760, 31.2315], color: [59, 130, 246], status: 1 },   // normal
+  { position: [121.4730, 31.2301], color: [245, 158, 11], status: 2 },   // warn
+  { position: [121.4765, 31.2305], color: [197, 168, 123], status: 1 },  // dock normal
+]
+
 let overlay: MapboxOverlay | null = null
 let phase = 0
 let animId: number | null = null
@@ -97,6 +113,40 @@ function buildLayers() {
       stroked: true,
       getLineColor: [255, 255, 255, 200],
       getLineWidth: 2,
+      lineWidthUnits: "pixels",
+      parameters: { depthTest: false },
+      pickable: false,
+    }),
+    // 区域扫描扩散（整改计划第六节"区域扫描扩散"）—— 周期性扩散环，半径随 phase 脉动
+    new ScatterplotLayer({
+      id: "deck-scan-spread",
+      data: SCAN_CENTERS,
+      getPosition: (d: any) => d.position,
+      getRadius: () => 40 + Math.sin(phase * Math.PI * 2) * 35,
+      radiusUnits: "meters",
+      radiusMinPixels: 20,
+      radiusMaxPixels: 120,
+      getFillColor: (d: any) => [d.color[0], d.color[1], d.color[2], 18],
+      stroked: true,
+      getLineColor: (d: any) => [d.color[0], d.color[1], d.color[2], 160],
+      getLineWidth: 1.5,
+      lineWidthUnits: "pixels",
+      parameters: { depthTest: false },
+      pickable: false,
+    }),
+    // 设备状态传播效果（整改计划第六节"设备状态传播效果"）—— 设备节点 + 脉冲传播
+    new ScatterplotLayer({
+      id: "deck-device-pulse",
+      data: DEVICE_NODES,
+      getPosition: (d: any) => d.position,
+      getRadius: (d: any) => d.status === 0 ? 50 + Math.sin(phase * Math.PI * 4) * 20 : 30,
+      radiusUnits: "meters",
+      radiusMinPixels: 8,
+      radiusMaxPixels: 60,
+      getFillColor: (d: any) => [d.color[0], d.color[1], d.color[2], d.status === 0 ? 50 : 30],
+      stroked: true,
+      getLineColor: (d: any) => [d.color[0], d.color[1], d.color[2], 220],
+      getLineWidth: (d: any) => d.status === 0 ? 2.5 : 1,
       lineWidthUnits: "pixels",
       parameters: { depthTest: false },
       pickable: false,
