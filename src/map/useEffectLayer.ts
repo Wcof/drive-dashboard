@@ -58,6 +58,23 @@ const DEVICE_NODES: { position: [number, number]; color: [number, number, number
   { position: [121.4765, 31.2305], color: [197, 168, 123], status: 1 },  // dock normal
 ]
 
+// 任务流仿真（整改计划第二节 Digital Twin Layer "task flow simulation"）
+// 机器人→任务目标的流光连线，模拟任务派发与执行流向
+const TASK_FLOWS: { from: [number, number]; to: [number, number]; color: [number, number, number] }[] = [
+  { from: [121.4738, 31.2312], to: [121.4745, 31.2308], color: [16, 185, 129] },   // 北区机器人→车间05
+  { from: [121.4750, 31.2303], to: [121.4768, 31.2295], color: [245, 158, 11] },   // 东区机器人→设备区08
+  { from: [121.4728, 31.2301], to: [121.4730, 31.2301], color: [239, 68, 68] },    // 西区机器人→储罐区07
+  { from: [121.4765, 31.2305], to: [121.4742, 31.2310], color: [0, 245, 255] },    // 充电站A→巡检点01
+]
+
+// AI 异常预测点位（整改计划第二节 Digital Twin Layer "AI anomaly prediction"）
+// 预测高风险区域，用脉动红环 + 中心警示标记表达 AI 预测的潜在异常
+const AI_PREDICTIONS: { position: [number, number]; severity: number }[] = [
+  { position: [121.4768, 31.2295], severity: 0.9 },   // 设备区08 高风险预测
+  { position: [121.4730, 31.2301], severity: 0.6 },   // 储罐区07 中风险预测
+  { position: [121.4748, 31.2298], severity: 0.45 },  // 巡检点03 中低风险预测
+]
+
 let overlay: MapboxOverlay | null = null
 let phase = 0
 let animId: number | null = null
@@ -147,6 +164,61 @@ function buildLayers() {
       stroked: true,
       getLineColor: (d: any) => [d.color[0], d.color[1], d.color[2], 220],
       getLineWidth: (d: any) => d.status === 0 ? 2.5 : 1,
+      lineWidthUnits: "pixels",
+      parameters: { depthTest: false },
+      pickable: false,
+    }),
+    // 任务流仿真（整改计划第二节 Digital Twin Layer "task flow simulation"）
+    // 机器人→任务目标流光连线，沿 phase 流动表达任务派发流向
+    new PathLayer({
+      id: "deck-task-flow",
+      data: TASK_FLOWS.map((t) => ({ path: [t.from, t.to], color: t.color })),
+      getPath: (d: any) => d.path,
+      getColor: (d: any) => [d.color[0], d.color[1], d.color[2], 80 + Math.sin(phase * Math.PI * 2) * 60],
+      getWidth: 4,
+      widthUnits: "pixels",
+      widthMinPixels: 2,
+      widthMaxPixels: 8,
+      jointRounded: true,
+      capRounded: true,
+      parameters: { depthTest: false },
+      pickable: false,
+    }),
+    // 任务流光头（沿 from→to 流动的派发标记）
+    new ScatterplotLayer({
+      id: "deck-task-flow-head",
+      data: TASK_FLOWS.map((t) => {
+        const p = phase
+        return {
+          position: [t.from[0] + (t.to[0] - t.from[0]) * p, t.from[1] + (t.to[1] - t.from[1]) * p],
+          color: t.color,
+        }
+      }),
+      getPosition: (d: any) => d.position,
+      getRadius: 12,
+      radiusUnits: "pixels",
+      getFillColor: (d: any) => [d.color[0], d.color[1], d.color[2], 240],
+      stroked: true,
+      getLineColor: [255, 255, 255, 220],
+      getLineWidth: 1.5,
+      lineWidthUnits: "pixels",
+      parameters: { depthTest: false },
+      pickable: false,
+    }),
+    // AI 异常预测（整改计划第二节 Digital Twin Layer "AI anomaly prediction"）
+    // 预测高风险区域，脉动红环 + severity 决定半径/透明度
+    new ScatterplotLayer({
+      id: "deck-ai-prediction",
+      data: AI_PREDICTIONS,
+      getPosition: (d: any) => d.position,
+      getRadius: (d: any) => 30 + d.severity * 40 + Math.sin(phase * Math.PI * 3) * 8,
+      radiusUnits: "meters",
+      radiusMinPixels: 15,
+      radiusMaxPixels: 80,
+      getFillColor: (d: any) => [239, 68, 68, 15 + d.severity * 25],
+      stroked: true,
+      getLineColor: (d: any) => [239, 68, 68, 120 + d.severity * 100],
+      getLineWidth: (d: any) => 1 + d.severity * 2,
       lineWidthUnits: "pixels",
       parameters: { depthTest: false },
       pickable: false,
