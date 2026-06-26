@@ -22,6 +22,13 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
 function fmtTime(d: Date): string {
   return d.toLocaleTimeString("zh-CN", { hour12: false })
 }
+function fmtDate(d: Date): string {
+  const w = ["星期日","星期一","星期二","星期三","星期四","星期五","星期六"][d.getDay()]
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
+  return `${y}-${m}-${day} ${w}`
+}
 </script>
 
 <template>
@@ -33,7 +40,7 @@ function fmtTime(d: Date): string {
 
     <div class="top-bar__center">
       <h2 class="top-bar__title">智能巡检机器人指挥中心</h2>
-      <div class="top-bar__ctx">当前视角: 全局场站</div>
+      <div class="top-bar__subtitle">智能感知 · 实时监控 · 高效运维</div>
     </div>
 
     <div class="top-bar__right">
@@ -55,7 +62,10 @@ function fmtTime(d: Date): string {
         <div class="kpi-item kpi-item--critical"><span class="k-label">紧急</span><span class="k-val">{{ criticalCount }}</span></div>
         <div class="kpi-item kpi-item--warn"><span class="k-label">警告</span><span class="k-val">{{ warningCount }}</span></div>
       </div>
-      <time class="top-bar__time">{{ fmtTime(now) }}</time>
+      <div class="top-bar__datetime">
+        <time class="top-bar__time">{{ fmtTime(now) }}</time>
+        <span class="top-bar__date">{{ fmtDate(now) }}</span>
+      </div>
       <button v-if="!isLocked" class="btn btn--ghost" @click="emit('toggle-layers')">图层</button>
       <button class="btn" :class="isLocked ? 'btn--unlock' : 'btn--lock'" @click="isLocked ? emit('request-unlock') : emit('request-lock')">
         {{ isLocked ? "解锁" : "锁定" }}
@@ -100,7 +110,16 @@ function fmtTime(d: Date): string {
   font-size: 0.2200rem; font-weight: 500; letter-spacing: 0.0600rem; color: var(--hud-text);
   text-shadow: 0 0 0.1600rem rgba(0, 229, 255, 0.4);
 }
-.top-bar__ctx { font-size: 0.1100rem; color: #00E5FF; letter-spacing: 0.0300rem; font-family: var(--hud-mono); }
+.top-bar__subtitle {
+  font-size: 0.1100rem; color: var(--hud-text-dim); letter-spacing: 0.0800rem;
+  font-family: var(--hud-mono);
+}
+.top-bar__subtitle::before, .top-bar__subtitle::after {
+  content: ""; display: inline-block; width: 0.2400rem; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(0, 229, 255, 0.5));
+  vertical-align: middle; margin: 0 0.1000rem;
+}
+.top-bar__subtitle::after { background: linear-gradient(90deg, rgba(0, 229, 255, 0.5), transparent); }
 
 /* 右：天气+安全天数+KPI+时间+按钮 */
 .top-bar__right { flex: 1; display: flex; align-items: center; justify-content: flex-end; gap: 0.1800rem; }
@@ -141,6 +160,8 @@ function fmtTime(d: Date): string {
 .kpi-item--warn .k-val { color: var(--hud-warn); }
 
 .top-bar__time { font-family: var(--hud-mono); font-size: 0.1500rem; color: var(--hud-text); font-weight: 300; letter-spacing: 1px; }
+.top-bar__datetime { display: flex; flex-direction: column; align-items: flex-end; gap: 0.0100rem; }
+.top-bar__date { font-size: 0.1000rem; color: var(--hud-text-dim); letter-spacing: 1px; font-family: var(--hud-mono); }
 
 .btn {
   padding: 0.0500rem 0.1400rem; border: 1px solid rgba(0, 229, 255, 0.25); background: transparent;

@@ -11,6 +11,14 @@ const { map } = useMapbox()
 
 const showDisplayControl = ref(false)
 const showSearch = ref(false)
+const activeTab = ref("overview")
+
+const mapTabs = [
+  { key: "overview", label: "地图总览" },
+  { key: "route", label: "巡检路线" },
+  { key: "device", label: "设备分布" },
+  { key: "heatmap", label: "告警热力" },
+] as const
 
 // 搜索候选列表
 const searchOptions = computed(() => {
@@ -66,45 +74,73 @@ const searchTypeOptions = [
 
 <template>
   <div class="map-toolbar">
-    <!-- 显示控制 -->
-    <div class="toolbar-group">
-      <button class="toolbar-btn" :class="{ active: showDisplayControl }" @click="showDisplayControl = !showDisplayControl">显示控制</button>
-      <div v-if="showDisplayControl" class="display-control-popover">
-        <label class="dc-item"><input type="checkbox" v-model="mapUi.labels" /> 标注</label>
-        <label class="dc-item"><input type="checkbox" v-model="mapUi.robots" /> 机器人</label>
-        <label class="dc-item"><input type="checkbox" v-model="mapUi.points" /> 巡检点</label>
-        <label class="dc-item"><input type="checkbox" v-model="mapUi.docks" /> 充电站</label>
-        <label class="dc-item"><input type="checkbox" v-model="mapUi.route" /> 巡检路径</label>
-        <label class="dc-item"><input type="checkbox" v-model="mapUi.pointStatus" /> 点位状态</label>
-      </div>
+    <!-- 顶部地图模式 tab（复刻参考页面 segmented tabs） -->
+    <div class="map-tabs">
+      <button v-for="t in mapTabs" :key="t.key" class="map-tab" :class="{ active: activeTab === t.key }" @click="activeTab = t.key">{{ t.label }}</button>
     </div>
 
-    <!-- 搜索定位 -->
-    <div class="toolbar-group">
-      <button class="toolbar-btn" :class="{ active: showSearch }" @click="showSearch = !showSearch">🔍 搜索定位</button>
-      <div v-if="showSearch" class="search-popover">
-        <select v-model="searchType" class="search-type-sel">
-          <option v-for="o in searchTypeOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
-        </select>
-        <input v-model="searchInput" class="search-input" placeholder="输入名称/ID模糊搜索…" />
-        <div v-if="searchOptions.length" class="search-results">
-          <button v-for="item in searchOptions" :key="item.id" class="search-result-item" @click="onSearchSelect(item)">{{ item.label }}</button>
+    <!-- 工具按钮组 -->
+    <div class="toolbar-actions">
+      <!-- 显示控制 -->
+      <div class="toolbar-group">
+        <button class="toolbar-btn" :class="{ active: showDisplayControl }" @click="showDisplayControl = !showDisplayControl">显示控制</button>
+        <div v-if="showDisplayControl" class="display-control-popover">
+          <label class="dc-item"><input type="checkbox" v-model="mapUi.labels" /> 标注</label>
+          <label class="dc-item"><input type="checkbox" v-model="mapUi.robots" /> 机器人</label>
+          <label class="dc-item"><input type="checkbox" v-model="mapUi.points" /> 巡检点</label>
+          <label class="dc-item"><input type="checkbox" v-model="mapUi.docks" /> 充电站</label>
+          <label class="dc-item"><input type="checkbox" v-model="mapUi.route" /> 巡检路径</label>
+          <label class="dc-item"><input type="checkbox" v-model="mapUi.pointStatus" /> 点位状态</label>
         </div>
       </div>
-    </div>
 
-    <button class="toolbar-btn" @click="resetView">视角重置</button>
-    <button class="toolbar-btn accent" @click="gotoGlobal">全局总览</button>
-    <button class="toolbar-btn accent" @click="setFocus('robot', 'robot-north-1')">调度台</button>
-    <button class="toolbar-btn accent" @click="setFocus('robot', 'robot-east-1')">驾驶舱</button>
+      <!-- 搜索定位 -->
+      <div class="toolbar-group">
+        <button class="toolbar-btn" :class="{ active: showSearch }" @click="showSearch = !showSearch">🔍 搜索定位</button>
+        <div v-if="showSearch" class="search-popover">
+          <select v-model="searchType" class="search-type-sel">
+            <option v-for="o in searchTypeOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
+          </select>
+          <input v-model="searchInput" class="search-input" placeholder="输入名称/ID模糊搜索…" />
+          <div v-if="searchOptions.length" class="search-results">
+            <button v-for="item in searchOptions" :key="item.id" class="search-result-item" @click="onSearchSelect(item)">{{ item.label }}</button>
+          </div>
+        </div>
+      </div>
+
+      <button class="toolbar-btn" @click="resetView">视角重置</button>
+      <button class="toolbar-btn accent" @click="gotoGlobal">全局总览</button>
+      <button class="toolbar-btn accent" @click="setFocus('robot', 'robot-north-1')">调度台</button>
+      <button class="toolbar-btn accent" @click="setFocus('robot', 'robot-east-1')">驾驶舱</button>
+    </div>
   </div>
 </template>
 
 <style scoped>
 .map-toolbar {
   position: absolute; top: 0.16rem; left: 50%; transform: translateX(-50%); z-index: 26;
-  display: flex; gap: 0.08rem; align-items: flex-start; pointer-events: auto;
+  display: flex; flex-direction: column; align-items: center; gap: 0.10rem; pointer-events: auto;
 }
+/* 顶部地图模式 tab —— 分段式 */
+.map-tabs {
+  display: inline-flex; gap: 0.02rem; padding: 0.03rem;
+  background: rgba(8, 14, 26, 0.78); border: 1px solid rgba(0, 229, 255, 0.22);
+  border-radius: 9.9900rem; backdrop-filter: blur(0.10rem);
+  box-shadow: 0 0.04rem 0.16rem rgba(0, 0, 0, 0.4);
+}
+.map-tab {
+  padding: 0.05rem 0.16rem; font-size: 0.11rem; color: var(--hud-text-dim); letter-spacing: 1px;
+  border: 0; border-radius: 9.9900rem; background: transparent; cursor: pointer;
+  transition: all 0.2s ease; white-space: nowrap;
+}
+.map-tab:hover { color: var(--hud-text); }
+.map-tab.active {
+  color: #030610; font-weight: 600;
+  background: linear-gradient(135deg, #00E5FF, #6B8EAD);
+  box-shadow: 0 0 0.10rem rgba(0, 229, 255, 0.5);
+}
+/* 工具按钮组 */
+.toolbar-actions { display: flex; gap: 0.08rem; align-items: flex-start; }
 .toolbar-group { position: relative; }
 .toolbar-btn {
   padding: 0.06rem 0.14rem; font-size: 0.11rem; color: var(--hud-text-dim); letter-spacing: 0.01rem;

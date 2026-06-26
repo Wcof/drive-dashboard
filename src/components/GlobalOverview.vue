@@ -3,7 +3,7 @@
 
 import { computed, ref } from "vue"
 import { useRobots } from "@/composables/useRobots"
-import { ROBOT_MILEAGE_KM, ATTACHMENT_SUMMARY_BASE } from "@/mock/seedDashboard"
+import { ROBOT_MILEAGE_KM } from "@/mock/seedDashboard"
 
 const { robots } = useRobots()
 
@@ -24,8 +24,32 @@ const robotBiz = computed(() => {
 const totalMileage = computed(() => Object.values(ROBOT_MILEAGE_KM).reduce((s, v) => s + v, 0))
 const todayMileage = 286
 const avgSpeed = computed(() => Math.max(6, robotBiz.value.executing * 2 + robotBiz.value.returning))
-const gas = ATTACHMENT_SUMMARY_BASE.gasSensors
-const gimbal = ATTACHMENT_SUMMARY_BASE.gimbals
+
+// 巡检总览 —— 4 类巡检任务统计（复刻参考页面）
+const planSummary = {
+  routine: { total: 3, running: 2 },
+  security: { total: 1, running: 1 },
+  temp: { total: 0, pending: 0 },
+  exception: { total: 17, pending: 17 },
+}
+
+// 机器人总览 —— 列表式（带电量条），复刻参考页面 robot-overview
+const robotStatusMap: Record<string, { label: string; cls: string }> = {
+  executing: { label: '运行中', cls: 'safe' },
+  returning: { label: '返航中', cls: 'warn' },
+  charging: { label: '充电中', cls: 'charging' },
+  standby: { label: '待命', cls: 'standby' },
+  error: { label: '故障', cls: 'danger' },
+}
+const robotList = computed(() => robots.value.map(r => {
+  const s = r.status === 'error' ? 'error'
+    : r.status === 'charging' ? 'charging'
+    : r.status === 'returning' ? 'returning'
+    : r.currentTaskId ? 'executing' : 'standby'
+  const label = r.name || r.id
+  const battery = Math.max(5, Math.min(100, r.batteryLevel ?? (s === 'error' ? 12 : s === 'returning' ? 32 : s === 'charging' ? 64 : 89)))
+  return { id: r.id, label, statusKey: s, status: robotStatusMap[s], battery }
+}))
 </script>
 
 <template>
@@ -94,50 +118,62 @@ const gimbal = ATTACHMENT_SUMMARY_BASE.gimbals
     </div>
   </section>
 
-  <!-- 巡检总览（复刻参考页面 plan-summary-cards） -->
+  <!-- 巡检总览（复刻参考页面 plan-summary-cards：4类巡检任务） -->
   <section class="plan-summary card">
     <div class="card-header">
       <h3 class="panel-title">巡检总览</h3>
     </div>
-    <div class="summary-grid four-columns">
-      <div class="summary-item"><span class="s-label">巡检点次</span><span class="s-val">68</span><span class="s-meta">今日累计</span></div>
-      <div class="summary-item"><span class="s-label">已巡检里程</span><span class="s-val">326km</span><span class="s-meta">巡检里程</span></div>
-      <div class="summary-item"><span class="s-label">覆盖率</span><span class="s-val">83%</span><span class="s-meta">当日覆盖</span></div>
-      <div class="summary-item"><span class="s-label">检测项</span><span class="s-val">192</span><span class="s-meta">检测项数量</span></div>
-      <div class="summary-item"><span class="s-label">设施设备数</span><span class="s-val">62</span><span class="s-meta">纳管设备</span></div>
-      <div class="summary-item"><span class="s-label">异常数</span><span class="s-val warn-txt">3</span><span class="s-meta">待跟踪项</span></div>
+    <div class="plan-cards">
+      <div class="plan-card">
+        <div class="plan-card__head"><span class="plan-dot plan-dot--cyan"></span>例行巡检</div>
+        <div class="plan-card__total">{{ planSummary.routine.total }}<span class="unit">项</span></div>
+        <div class="plan-card__sub">执行中 <em>{{ planSummary.routine.running }}</em></div>
+      </div>
+      <div class="plan-card">
+        <div class="plan-card__head"><span class="plan-dot plan-dot--blue"></span>自主安保</div>
+        <div class="plan-card__total">{{ planSummary.security.total }}<span class="unit">项</span></div>
+        <div class="plan-card__sub">执行中 <em>{{ planSummary.security.running }}</em></div>
+      </div>
+      <div class="plan-card">
+        <div class="plan-card__head"><span class="plan-dot plan-dot--gray"></span>临时巡检</div>
+        <div class="plan-card__total">{{ planSummary.temp.total }}<span class="unit">项</span></div>
+        <div class="plan-card__sub">待调度 <em>{{ planSummary.temp.pending }}</em></div>
+      </div>
+      <div class="plan-card plan-card--warn">
+        <div class="plan-card__head"><span class="plan-dot plan-dot--warn"></span>异常巡查</div>
+        <div class="plan-card__total warn-txt">{{ planSummary.exception.total }}<span class="unit">项</span></div>
+        <div class="plan-card__sub">待处理 <em class="warn-txt">{{ planSummary.exception.pending }}</em></div>
+      </div>
     </div>
   </section>
 
-  <!-- 机器人总览 -->
+  <!-- 机器人总览（复刻参考页面 robot-overview：列表 + 电量条） -->
   <section class="robot-overview card">
     <div class="card-header">
       <h3 class="panel-title">机器人总览</h3>
-      <div class="rs-total">机器人总里程: <strong>{{ totalMileage }}km</strong></div>
+      <div class="rs-total">总里程: <strong>{{ totalMileage }}km</strong></div>
     </div>
-    <div class="summary-grid four-columns">
-      <div class="summary-item"><span class="s-label">执行中/返航中</span><span class="s-val">{{ robotBiz.executing }}/{{ robotBiz.returning }}</span><span class="s-meta">当前状态</span></div>
-      <div class="summary-item"><span class="s-label">充电中</span><span class="s-val">{{ robotBiz.charging }}</span><span class="s-meta">充电状态</span></div>
-      <div class="summary-item"><span class="s-label">临时任务</span><span class="s-val">3</span><span class="s-meta">临时插单</span></div>
-      <div class="summary-item"><span class="s-label">机器人总数</span><span class="s-val">{{ totalRobots }}</span><span class="s-meta">在册机器人</span></div>
-      <div class="summary-item"><span class="s-label">今日里程</span><span class="s-val">{{ todayMileage }}km</span><span class="s-meta">总里程 {{ totalMileage }}km</span></div>
-      <div class="summary-item"><span class="s-label">平均时速</span><span class="s-val">{{ avgSpeed }}km/h</span><span class="s-meta">当日均值</span></div>
-    </div>
-    <div class="sub-summary-block">
-      <div class="sub-summary-header"><span>气体感应器</span></div>
-      <div class="summary-grid three-columns">
-        <div class="summary-item"><span class="s-label">传感器总数</span><span class="s-val">{{ gas.total }}</span><span class="s-meta">总数</span></div>
-        <div class="summary-item"><span class="s-label">传感器正常</span><span class="s-val">{{ gas.normal }}</span><span class="s-meta">正常</span></div>
-        <div class="summary-item"><span class="s-label">传感器异常</span><span class="s-val warn-txt">{{ gas.offline }}</span><span class="s-meta">已掉线</span></div>
+    <div class="robot-list">
+      <div v-for="rb in robotList" :key="rb.id" class="robot-row" :class="rb.status.cls">
+        <span class="robot-row__status-dot" :class="rb.status.cls"></span>
+        <div class="robot-row__main">
+          <div class="robot-row__head">
+            <span class="robot-row__name">{{ rb.label }}</span>
+            <span class="robot-row__status-tag" :class="rb.status.cls">{{ rb.status.label }}</span>
+          </div>
+          <div class="robot-row__battery">
+            <div class="battery-bar">
+              <div class="battery-fill" :class="rb.status.cls" :style="{ width: rb.battery + '%' }"></div>
+            </div>
+            <span class="battery-val">{{ rb.battery }}%</span>
+          </div>
+        </div>
       </div>
     </div>
-    <div class="sub-summary-block">
-      <div class="sub-summary-header"><span>云台</span></div>
-      <div class="summary-grid three-columns">
-        <div class="summary-item"><span class="s-label">云台总数</span><span class="s-val">{{ gimbal.total }}</span><span class="s-meta">总数</span></div>
-        <div class="summary-item"><span class="s-label">云台正常</span><span class="s-val">{{ gimbal.normal }}</span><span class="s-meta">正常</span></div>
-        <div class="summary-item"><span class="s-label">云台异常</span><span class="s-val warn-txt">{{ gimbal.offline }}</span><span class="s-meta">已掉线</span></div>
-      </div>
+    <div class="robot-overview__stats">
+      <div class="ros-item"><span class="ros-label">今日里程</span><span class="ros-val">{{ todayMileage }}<em>km</em></span></div>
+      <div class="ros-item"><span class="ros-label">平均时速</span><span class="ros-val">{{ avgSpeed }}<em>km/h</em></span></div>
+      <div class="ros-item"><span class="ros-label">执行/返航</span><span class="ros-val">{{ robotBiz.executing }}/{{ robotBiz.returning }}</span></div>
     </div>
   </section>
 
@@ -427,4 +463,75 @@ const gimbal = ATTACHMENT_SUMMARY_BASE.gimbals
 .sub-summary-header { font-size: 0.1000rem; color: var(--hud-text-dim); margin-bottom: 0.0400rem; border-bottom: 1px solid rgba(107,142,173,0.15); padding-bottom: 0.0300rem; }
 .summary-grid.three-columns { grid-template-columns: repeat(3, 1fr); }
 .warn-txt { color: #F59E0B; }
+
+/* 巡检总览 —— 4 类任务卡 */
+.plan-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.0800rem; }
+.plan-card {
+  padding: 0.1000rem 0.1200rem; border-radius: 0.0600rem;
+  background: linear-gradient(135deg, rgba(8, 14, 26, 0.8) 0%, rgba(5, 8, 16, 0.5) 100%);
+  border: 1px solid rgba(0, 229, 255, 0.15);
+  display: flex; flex-direction: column; gap: 0.0400rem;
+  transition: all 0.2s ease;
+}
+.plan-card:hover { border-color: rgba(0, 229, 255, 0.35); transform: translateY(-1px); }
+.plan-card--warn { border-color: rgba(245, 158, 11, 0.3); }
+.plan-card--warn:hover { border-color: rgba(245, 158, 11, 0.5); }
+.plan-card__head { display: flex; align-items: center; gap: 0.0600rem; font-size: 0.1100rem; color: var(--hud-text-dim); }
+.plan-dot { width: 0.0600rem; height: 0.0600rem; border-radius: 50%; box-shadow: 0 0 0.0600rem currentColor; }
+.plan-dot--cyan { background: #00E5FF; color: #00E5FF; }
+.plan-dot--blue { background: #3B82F6; color: #3B82F6; }
+.plan-dot--gray { background: #64748B; color: #64748B; }
+.plan-dot--warn { background: #F59E0B; color: #F59E0B; }
+.plan-card__total { font-size: 0.2200rem; font-weight: 700; color: #FFFFFF; font-family: var(--hud-mono); line-height: 1.1; }
+.plan-card__total .unit { font-size: 0.1000rem; color: var(--hud-text-dim); font-weight: 400; margin-left: 0.0300rem; }
+.plan-card__sub { font-size: 0.1000rem; color: var(--hud-text-dim); }
+.plan-card__sub em { font-style: normal; color: #00E5FF; font-family: var(--hud-mono); margin-left: 0.0400rem; }
+.plan-card--warn .plan-card__sub em { color: #F59E0B; }
+
+/* 机器人总览 —— 列表 + 电量条 */
+.robot-list { display: flex; flex-direction: column; gap: 0.0600rem; }
+.robot-row {
+  display: flex; align-items: center; gap: 0.1000rem;
+  padding: 0.0800rem 0.1000rem; border-radius: 0.0600rem;
+  background: rgba(8, 14, 26, 0.6); border: 1px solid rgba(0, 229, 255, 0.1);
+  border-left: 3px solid transparent;
+  transition: all 0.2s ease;
+}
+.robot-row:hover { border-color: rgba(0, 229, 255, 0.25); transform: translateX(2px); }
+.robot-row.safe { border-left-color: var(--hud-ok); }
+.robot-row.warn { border-left-color: var(--hud-warn); }
+.robot-row.charging { border-left-color: var(--hud-info); }
+.robot-row.standby { border-left-color: var(--hud-accent-smog); }
+.robot-row.danger { border-left-color: var(--hud-danger); background: rgba(239, 68, 68, 0.05); }
+.robot-row__status-dot { width: 0.0800rem; height: 0.0800rem; border-radius: 50%; flex-shrink: 0; box-shadow: 0 0 0.0600rem currentColor; }
+.robot-row__status-dot.safe { background: var(--hud-ok); color: var(--hud-ok); }
+.robot-row__status-dot.warn { background: var(--hud-warn); color: var(--hud-warn); }
+.robot-row__status-dot.charging { background: var(--hud-info); color: var(--hud-info); }
+.robot-row__status-dot.standby { background: var(--hud-accent-smog); color: var(--hud-accent-smog); }
+.robot-row__status-dot.danger { background: var(--hud-danger); color: var(--hud-danger); animation: pulseDot 1.2s ease-in-out infinite; }
+@keyframes pulseDot { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+.robot-row__main { flex: 1; display: flex; flex-direction: column; gap: 0.0400rem; min-width: 0; }
+.robot-row__head { display: flex; justify-content: space-between; align-items: center; }
+.robot-row__name { font-size: 0.1200rem; color: var(--hud-text); font-weight: 500; }
+.robot-row__status-tag { font-size: 0.0900rem; padding: 0.0100rem 0.0600rem; border-radius: 0.0200rem; border: 1px solid transparent; }
+.robot-row__status-tag.safe { color: var(--hud-ok); border-color: rgba(16, 185, 129, 0.35); background: rgba(16, 185, 129, 0.08); }
+.robot-row__status-tag.warn { color: var(--hud-warn); border-color: rgba(245, 158, 11, 0.35); background: rgba(245, 158, 11, 0.08); }
+.robot-row__status-tag.charging { color: var(--hud-info); border-color: rgba(59, 130, 246, 0.35); background: rgba(59, 130, 246, 0.08); }
+.robot-row__status-tag.standby { color: var(--hud-accent-smog); border-color: rgba(107, 142, 173, 0.35); background: rgba(107, 142, 173, 0.08); }
+.robot-row__status-tag.danger { color: var(--hud-danger); border-color: rgba(239, 68, 68, 0.35); background: rgba(239, 68, 68, 0.08); }
+.robot-row__battery { display: flex; align-items: center; gap: 0.0600rem; }
+.battery-bar { flex: 1; height: 0.0600rem; background: rgba(255, 255, 255, 0.06); border-radius: 9.9900rem; overflow: hidden; }
+.battery-fill { height: 100%; border-radius: 9.9900rem; transition: width 0.4s ease; }
+.battery-fill.safe { background: linear-gradient(90deg, #10B981, #34D399); }
+.battery-fill.warn { background: linear-gradient(90deg, #F59E0B, #FBBF24); }
+.battery-fill.charging { background: linear-gradient(90deg, #3B82F6, #60A5FA); }
+.battery-fill.standby { background: linear-gradient(90deg, #6B8EAD, #94A3B8); }
+.battery-fill.danger { background: linear-gradient(90deg, #EF4444, #F87171); }
+.battery-val { font-size: 0.0900rem; color: var(--hud-text-dim); font-family: var(--hud-mono); min-width: 0.3000rem; text-align: right; }
+
+.robot-overview__stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.0600rem; margin-top: 0.0800rem; padding-top: 0.0800rem; border-top: 1px solid rgba(107, 142, 173, 0.15); }
+.ros-item { display: flex; flex-direction: column; align-items: center; gap: 0.0200rem; }
+.ros-label { font-size: 0.0900rem; color: var(--hud-text-dim); }
+.ros-val { font-size: 0.1400rem; color: #00E5FF; font-family: var(--hud-mono); font-weight: bold; }
+.ros-val em { font-style: normal; font-size: 0.0900rem; color: var(--hud-text-dim); margin-left: 0.0200rem; font-weight: 400; }
 </style>

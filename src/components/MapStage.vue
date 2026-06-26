@@ -12,6 +12,10 @@ import { useDashboard } from "@/composables/useDashboard"
 import { computeFovCone } from "@/utils/fovGeometry"
 import { alertColor, alertSize, shouldFlash } from "@/utils/alertSymbol"
 import { AlertStatus } from "@/types/alert"
+import { useAssetLayer } from "@/map/useAssetLayer"
+import { useDeckOverlay } from "@/map/useEffectLayer"
+// 整改计划第七节拆分：/map composables 已抽出（useMapStyle/use3DLayer/useRobotLayer/useAlarmLayer/useAssetLayer/useEffectLayer/useMapboxBase）
+// MapStage 暂保留内联渲染逻辑以避免大范围重写引入回归，composable 作为可复用模块供后续渐进迁移
 
 const containerRef = ref<HTMLDivElement | null>(null)
 const { map, ready, init, destroy } = useMapbox()
@@ -19,8 +23,10 @@ const { visibility, isVisible } = useLayers()
 const { state } = getMockDataService()
 const { selectedRobot } = useSelectedRobot()
 const dash = useDashboard()
+const { assetsGeoJSON } = useAssetLayer()
+const deck = useDeckOverlay()
 
-// Track HTML Markers for robots / docks / ap / inspection points
+// Track HTML Markers for robots / docks / ap / inspection points / alerts
 const markersMap = new Map<string, mapboxgl.Marker>()
 const dockMarkersMap = new Map<string, mapboxgl.Marker>()
 const apMarkersMap = new Map<string, mapboxgl.Marker>()
@@ -121,36 +127,6 @@ function patrolRoutesGeoJSON(): GeoJSON.FeatureCollection {
   return { type: "FeatureCollection", features: routes }
 }
 
-// 点位（巡检点 + 充电站 + 消防站）
-function pointsGeoJSON(): GeoJSON.FeatureCollection {
-  const facilityPoints = [
-    { lng: 121.4740, lat: 31.2295, name: "门禁01", type: "gate" },
-    { lng: 121.4760, lat: 31.2315, name: "办公楼A", type: "office" },
-    { lng: 121.4760, lat: 31.2308, name: "办公楼B", type: "office" },
-    { lng: 121.4760, lat: 31.2301, name: "办公楼C", type: "office" },
-    { lng: 121.4745, lat: 31.2308, name: "生产车间05", type: "plant" },
-    { lng: 121.4745, lat: 31.2300, name: "生产车间06", type: "plant" },
-    { lng: 121.4730, lat: 31.2301, name: "储罐区07", type: "tank" },
-    { lng: 121.4768, lat: 31.2295, name: "设备区08", type: "equip" },
-    { lng: 121.4768, lat: 31.2318, name: "污水处理09", type: "water" },
-    { lng: 121.4755, lat: 31.2318, name: "综合厂房10", type: "plant" },
-    { lng: 121.4732, lat: 31.2290, name: "储罐区11", type: "tank" },
-    { lng: 121.4765, lat: 31.2288, name: "物流装卸12", type: "logistics" },
-    { lng: 121.4755, lat: 31.2288, name: "消防站13", type: "fire" },
-    { lng: 121.4772, lat: 31.2312, name: "停车场14", type: "park" },
-    { lng: 121.4765, lat: 31.2305, name: "充电站A", type: "dock" },
-    { lng: 121.4735, lat: 31.2308, name: "充电站B", type: "dock" },
-  ]
-  return {
-    type: "FeatureCollection",
-    features: facilityPoints.map((p) => ({
-      type: "Feature" as const,
-      properties: { name: p.name, pointType: p.type },
-      geometry: { type: "Point" as const, coordinates: [p.lng, p.lat] },
-    })),
-  }
-}
-
 function fovGeoJSON(): GeoJSON.FeatureCollection {
   if (!selectedRobot.value) return { type: "FeatureCollection", features: [] }
   const cone = computeFovCone({
@@ -168,10 +144,34 @@ function fovGeoJSON(): GeoJSON.FeatureCollection {
   }
 }
 
+// P1 机器人动态光点 GeoJSON —— 整改计划第五节 robot pulse 升级方案
+// 用 Mapbox circle layer 的 zoom 感知 circle-radius（6→14），配合 HTML marker 共存
+function robotsGeoJSON(): GeoJSON.FeatureCollection {
+  const statusColor: Record<string, string> = {
+    patrolling: "#10B981", online: "#3B82F6", returning: "#F59E0B",
+    charging: "#60A5FA", error: "#EF4444", paused: "#94A3B8", offline: "#475569",
+  }
+  return {
+    type: "FeatureCollection",
+    features: state.robots.map((r) => ({
+      type: "Feature" as const,
+      properties: {
+        id: r.id, name: r.name, status: r.status,
+        color: statusColor[r.status] ?? "#00F5FF",
+        selected: selectedRobot.value?.id === r.id,
+      },
+      geometry: {
+        type: "Point" as const,
+        coordinates: [r.position.longitude, r.position.latitude],
+      },
+    })),
+  }
+}
+
 const SOURCE_IDS = {
   alerts: "dd-alerts", buildings: "dd-buildings",
   routes: "dd-routes", points: "dd-points", fov: "dd-fov",
-  regions: "dd-regions",
+  regions: "dd-regions", robots: "dd-robots",
 } as const
 
 function addSource(id: string, data: GeoJSON.GeoJSON): void {
@@ -212,6 +212,8 @@ function updateRobotMarkers() {
       const el = document.createElement("div")
       el.className = `robot-marker status-${robot.status} ${isSel ? 'selected' : ''}`
       el.innerHTML = `
+        <div class="scan-wave"></div>
+        <div class="scan-wave delay-1"></div>
         <div class="radar-ripple"></div>
         <div class="radar-ripple delay-1"></div>
         <div class="radar-ripple delay-2"></div>
@@ -344,8 +346,9 @@ function setupLayers(): void {
   addSource(s.buildings, buildingsGeoJSON())
   addSource(s.alerts, alertsGeoJSON())
   addSource(s.routes, patrolRoutesGeoJSON())
-  addSource(s.points, pointsGeoJSON())
+  addSource(s.points, assetsGeoJSON())
   addSource(s.fov, fovGeoJSON())
+  addSource(s.robots, robotsGeoJSON())
 
   // ② 3D 园区区域呼吸光栅
   m.addLayer({
@@ -376,10 +379,11 @@ function setupLayers(): void {
       "source-layer": "building",
       type: "fill-extrusion",
       paint: {
-        "fill-extrusion-color": "#132238",
+        "fill-extrusion-color": "#1A2A3A",
         "fill-extrusion-height": ["get", "height"] as never,
         "fill-extrusion-base": ["get", "min_height"] as never,
-        "fill-extrusion-opacity": 0.65
+        "fill-extrusion-opacity": 0.78,
+        "fill-extrusion-emissive-strength": 0.45,
       }
     } as any)
   }
@@ -393,17 +397,23 @@ function setupLayers(): void {
       "fill-extrusion-height": ["get", "height"] as never,
       "fill-extrusion-base": 0,
       "fill-extrusion-opacity": 0.82,
+      "fill-extrusion-emissive-strength": 0.6,
     },
   } as any)
 
-  // ④b 建筑顶部霓虹蓝轮廓
+  // ④b 建筑顶部霓虹蓝轮廓（P0 强化：双层 line glow）
   m.addLayer({
     id: "layer-buildingsOutline", type: "line", source: s.buildings,
     layout: { visibility: "visible" },
-    paint: { "line-color": "#00E5FF", "line-width": 1.5, "line-opacity": 0.5, "line-blur": 1.5 },
+    paint: { "line-color": "#00F5FF", "line-width": 1.8, "line-opacity": 0.7, "line-blur": 2.5 },
+  } as any)
+  m.addLayer({
+    id: "layer-buildingsOutlineCore", type: "line", source: s.buildings,
+    layout: { visibility: "visible" },
+    paint: { "line-color": "#7FE9FF", "line-width": 0.6, "line-opacity": 0.95, "line-blur": 0 },
   } as any)
 
-  // ⑤ 巡检轨迹流光（line + 渐变发光）
+  // ⑤ 巡检轨迹流光（P0 glow line + 头尾双色 gradient，对齐整改计划第五节）
   m.addLayer({
     id: "layer-patrolRoutes", type: "line", source: s.routes,
     layout: { "line-cap": "round", "line-join": "round", visibility: "visible" },
@@ -413,9 +423,9 @@ function setupLayers(): void {
       "line-blur": 2.5,
       "line-gradient": [
         "interpolate", ["linear"], ["line-progress"],
-        0, "rgba(0, 229, 255, 1)",
-        0.5, "rgba(59, 130, 246, 0.4)",
-        1, "rgba(0, 229, 255, 1)",
+        0, "#00F5FF",
+        0.5, "rgba(59, 130, 246, 0.55)",
+        1, "#1E4DFF",
       ] as never,
     },
   } as any)
@@ -427,6 +437,16 @@ function setupLayers(): void {
     paint: {
       "line-color": "#00E5FF", "line-width": 2.5, "line-opacity": 0.8, "line-blur": 0.5,
       "line-dasharray": [0.5, 4],
+    },
+  } as any)
+
+  // ⑤b 轨迹光头（方向感增强）—— 短高亮 dash 沿轨迹流动，方向感强
+  m.addLayer({
+    id: "layer-patrolHead", type: "line", source: s.routes,
+    layout: { "line-cap": "round", "line-join": "round", visibility: "visible" },
+    paint: {
+      "line-color": "#00F5FF", "line-width": 7, "line-opacity": 0.95, "line-blur": 4,
+      "line-dasharray": [0.18, 4.82],
     },
   } as any)
 
@@ -444,21 +464,37 @@ function setupLayers(): void {
     },
   } as any)
 
-  // ⑦ 设施点位（符号）
+  // ⑦ Asset 语义层（P1 统一资产抽象：工厂/设备/充电桩/巡检点/安全设施 + 状态发光）
   m.addLayer({
-    id: "layer-facilityPoints", type: "circle", source: s.points,
+    id: "layer-assetGlow", type: "circle", source: s.points,
     layout: { visibility: "visible" },
     paint: {
-      "circle-radius": 5.5,
-      "circle-color": [
-        "match", ["get", "pointType"],
-        "dock", "#C5A87B", "fire", "#EF4444", "tank", "#F59E0B",
-        "plant", "#6B8EAD", "office", "#3B82F6", "gate", "#10B981",
-        "water", "#06B6D4", "equip", "#8B5CF6", "logistics", "#94A3B8", "park", "#64748B",
-        "#6B8EAD",
-      ] as never,
-      "circle-stroke-width": 1, "circle-stroke-color": "#FFFFFF", "circle-stroke-opacity": 0.5,
-      "circle-opacity": 0.85,
+      "circle-radius": 11,
+      "circle-color": ["get", "statusColor"] as never,
+      "circle-opacity": 0.18,
+      "circle-blur": 6,
+    },
+  } as any)
+  m.addLayer({
+    id: "layer-assetRing", type: "circle", source: s.points,
+    layout: { visibility: "visible" },
+    paint: {
+      "circle-radius": 7,
+      "circle-color": ["get", "color"] as never,
+      "circle-stroke-width": 1.5,
+      "circle-stroke-color": ["get", "statusColor"] as never,
+      "circle-stroke-opacity": 0.9,
+      "circle-opacity": 0.35,
+    },
+  } as any)
+  m.addLayer({
+    id: "layer-assetCore", type: "circle", source: s.points,
+    layout: { visibility: "visible" },
+    paint: {
+      "circle-radius": 3,
+      "circle-color": ["get", "statusColor"] as never,
+      "circle-stroke-width": 1, "circle-stroke-color": "#FFFFFF", "circle-stroke-opacity": 0.7,
+      "circle-opacity": 0.95,
     },
   } as any)
 
@@ -486,6 +522,33 @@ function setupLayers(): void {
 
   // 启动流光动画
   startFlowAnimation()
+
+  // P1 robot pulse —— Mapbox circle layer zoom 感知（整改计划第五节 circle-radius 6→14）
+  m.addLayer({
+    id: "layer-robotPulseGlow", type: "circle", source: s.robots,
+    layout: { visibility: "visible" },
+    paint: {
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 14, 14, 19, 34] as never,
+      "circle-color": ["get", "color"] as never,
+      "circle-opacity": 0.18,
+      "circle-blur": 8,
+    },
+  } as any)
+  m.addLayer({
+    id: "layer-robotPulseCore", type: "circle", source: s.robots,
+    layout: { visibility: "visible" },
+    paint: {
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 14, 6, 19, 14] as never,
+      "circle-color": ["get", "color"] as never,
+      "circle-stroke-width": 1.5,
+      "circle-stroke-color": "#FFFFFF",
+      "circle-stroke-opacity": 0.8,
+      "circle-opacity": 0.7,
+    },
+  } as any)
+
+  // P2 deck.gl 数字孪生增强 —— 电影级轨迹动画 + 风险热力
+  deck.attach(m)
 }
 
 let flowAnimId: number | null = null
@@ -497,27 +560,33 @@ function startFlowAnimation(): void {
   
   function animate() {
     if (!m.getLayer("layer-patrolFlow")) return
-    
+
     // Animate patrol flow offsets
     offset = (offset + 0.08) % 5
     m.setPaintProperty("layer-patrolFlow", "line-dasharray", [offset, 5 - offset])
-    
+
+    // 光头层 —— 更快流动，短高亮 dash 跑在前面，方向感强
+    if (m.getLayer("layer-patrolHead")) {
+      const headOffset = (offset * 2.2) % 5
+      m.setPaintProperty("layer-patrolHead", "line-dasharray", [headOffset, 5 - headOffset])
+    }
+
     // Animate sector regions breathing opacity
     regionOpacityPhase = (regionOpacityPhase + 0.025) % (Math.PI * 2)
     const breath = (Math.sin(regionOpacityPhase) + 1) / 2 // 0 to 1
-    
+
     if (m.getLayer("layer-regions-fill")) {
       const normalOpacity = 0.02 + breath * 0.06
       const forbidBreath = (Math.sin(regionOpacityPhase * 2.8) + 1) / 2
       const forbidOpacity = 0.05 + forbidBreath * 0.23
-      
+
       m.setPaintProperty("layer-regions-fill", "fill-opacity", [
         "case",
         ["==", ["get", "id"], "region-forbid"], forbidOpacity,
         normalOpacity
       ] as any)
     }
-    
+
     flowAnimId = requestAnimationFrame(animate)
   }
   animate()
@@ -562,6 +631,7 @@ onMounted(() => {
     dataInterval = setInterval(() => {
       if (!ready.value || !map.value) return
       addSource(SOURCE_IDS.alerts, alertsGeoJSON())
+      addSource(SOURCE_IDS.robots, robotsGeoJSON())
       updateRobotMarkers()
       updateDockMarkers()
       updateApMarkers()
@@ -584,6 +654,7 @@ onUnmounted(() => {
   ipMarkersMap.clear()
   alertMarkersMap.forEach((m) => m.remove())
   alertMarkersMap.clear()
+  deck.detach()
   destroy()
 })
 </script>
@@ -608,6 +679,26 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   cursor: pointer;
+}
+
+/* P1 scan wave —— 风险扫描波纹扩散（对齐整改计划第五节 scale 1→5 opacity 0.8→0） */
+.map-stage :deep(.scan-wave) {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid #00F5FF;
+  opacity: 0;
+  pointer-events: none;
+  animation: scan-wave-pulse 2.6s cubic-bezier(0.1, 0.7, 0.3, 1) infinite;
+  box-shadow: 0 0 12px rgba(0, 245, 255, 0.5);
+}
+.map-stage :deep(.scan-wave.delay-1) {
+  animation-delay: 1.3s;
+}
+@keyframes scan-wave-pulse {
+  0% { transform: scale(1); opacity: 0.8; }
+  100% { transform: scale(5); opacity: 0; }
 }
 
 .map-stage :deep(.radar-ripple) {
@@ -649,24 +740,31 @@ onUnmounted(() => {
 /* Status colors override for ripples & sweeps */
 .map-stage :deep(.robot-marker.status-patrolling .radar-ripple) { border-color: #10B981; }
 .map-stage :deep(.robot-marker.status-patrolling .radar-sweep) { background: conic-gradient(from 0deg, rgba(16, 185, 129, 0.18) 0deg, rgba(16, 185, 129, 0) 100deg); }
+.map-stage :deep(.robot-marker.status-patrolling .scan-wave) { border-color: #10B981; box-shadow: 0 0 12px rgba(16, 185, 129, 0.5); }
 
 .map-stage :deep(.robot-marker.status-online .radar-ripple) { border-color: #3B82F6; }
 .map-stage :deep(.robot-marker.status-online .radar-sweep) { background: conic-gradient(from 0deg, rgba(59, 130, 246, 0.18) 0deg, rgba(59, 130, 246, 0) 100deg); }
+.map-stage :deep(.robot-marker.status-online .scan-wave) { border-color: #3B82F6; box-shadow: 0 0 12px rgba(59, 130, 246, 0.5); }
 
 .map-stage :deep(.robot-marker.status-returning .radar-ripple) { border-color: #F59E0B; }
 .map-stage :deep(.robot-marker.status-returning .radar-sweep) { background: conic-gradient(from 0deg, rgba(245, 158, 11, 0.18) 0deg, rgba(245, 158, 11, 0) 100deg); }
+.map-stage :deep(.robot-marker.status-returning .scan-wave) { border-color: #F59E0B; box-shadow: 0 0 12px rgba(245, 158, 11, 0.5); }
 
 .map-stage :deep(.robot-marker.status-charging .radar-ripple) { border-color: #60A5FA; }
 .map-stage :deep(.robot-marker.status-charging .radar-sweep) { background: conic-gradient(from 0deg, rgba(96, 165, 250, 0.18) 0deg, rgba(96, 165, 250, 0) 100deg); }
+.map-stage :deep(.robot-marker.status-charging .scan-wave) { border-color: #60A5FA; box-shadow: 0 0 12px rgba(96, 165, 250, 0.5); }
 
 .map-stage :deep(.robot-marker.status-error .radar-ripple) { border-color: #EF4444; }
 .map-stage :deep(.robot-marker.status-error .radar-sweep) { background: conic-gradient(from 0deg, rgba(239, 68, 68, 0.2) 0deg, rgba(239, 68, 68, 0) 100deg); }
+.map-stage :deep(.robot-marker.status-error .scan-wave) { border-color: #EF4444; box-shadow: 0 0 14px rgba(239, 68, 68, 0.7); }
 
 .map-stage :deep(.robot-marker.status-paused .radar-ripple) { border-color: #94A3B8; }
 .map-stage :deep(.robot-marker.status-paused .radar-sweep) { background: conic-gradient(from 0deg, rgba(148, 163, 184, 0.1) 0deg, rgba(148, 163, 184, 0) 100deg); }
+.map-stage :deep(.robot-marker.status-paused .scan-wave) { border-color: #94A3B8; box-shadow: 0 0 8px rgba(148, 163, 184, 0.3); }
 
 .map-stage :deep(.robot-marker.status-offline .radar-ripple),
-.map-stage :deep(.robot-marker.status-offline .radar-sweep) { display: none; }
+.map-stage :deep(.robot-marker.status-offline .radar-sweep),
+.map-stage :deep(.robot-marker.status-offline .scan-wave) { display: none; }
 
 @keyframes radar-pulse {
   0% {

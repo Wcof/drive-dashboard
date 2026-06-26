@@ -153,11 +153,11 @@ function onTaskPoolClick(task: { tk: string; bot: string }): void {
   dash.setFocus("robot", task.bot)
 }
 
-// popup 关闭
-function closeRobotPopup(): void { dash.showRobotPopup.value = false }
-function closeInspectionPointPopup(): void { dash.showInspectionPointPopup.value = false }
-function closeDockPopup(): void { dash.showDockPopup.value = false }
-function closeApPopup(): void { dash.showApPopup.value = false }
+// popup 关闭 —— 同时暂停自动轮播，避免 8s 后 tickAutoplay 通过 setFocus 又把同类型 popup 重新打开
+function closeRobotPopup(): void { dash.showRobotPopup.value = false; dash.state.autoplayEnabled = false }
+function closeInspectionPointPopup(): void { dash.showInspectionPointPopup.value = false; dash.state.autoplayEnabled = false }
+function closeDockPopup(): void { dash.showDockPopup.value = false; dash.state.autoplayEnabled = false }
+function closeApPopup(): void { dash.showApPopup.value = false; dash.state.autoplayEnabled = false }
 </script>
 
 <template>
@@ -253,23 +253,92 @@ function closeApPopup(): void { dash.showApPopup.value = false }
 
       <!-- 右侧浮动面板：风险告警 L1 -->
       <aside class="panel right-panel">
-        <!-- 安全风险（复刻参考页面 operation-status） -->
+        <!-- 安全风险（复刻参考页面 operation-status：盾牌 + 4类分项） -->
         <section class="risk-section card">
           <div class="card-header">
             <h3 class="section-title">安全风险</h3>
             <span class="rs-tag">重点关注</span>
           </div>
-          <div class="risk-compact-grid">
-            <div class="risk-compact-card">
-              <div class="risk-compact-value">{{ dash.alertsExt.value.length }}</div>
-              <div class="risk-compact-label">当日告警总数</div>
-              <div class="risk-breakdown">
-                <div class="risk-row"><span class="risk-dot" style="background:#EF4444"></span><span>巡检点</span><span class="risk-val">{{ dash.alertsExt.value.filter(a => a.level === 'danger').length }}</span></div>
-                <div class="risk-row"><span class="risk-dot" style="background:#F59E0B"></span><span>设施设备</span><span class="risk-val">{{ dash.alertsExt.value.filter(a => a.level === 'warn').length }}</span></div>
-                <div class="risk-row"><span class="risk-dot" style="background:#6B8EAD"></span><span>气体异常</span><span class="risk-val">1</span></div>
-                <div class="risk-row"><span class="risk-dot" style="background:#22C55E"></span><span>安全行为</span><span class="risk-val">0</span></div>
-              </div>
+          <div class="risk-shield">
+            <svg class="risk-shield__icon" viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M12 2L3 5v6c0 5.5 3.8 10.7 9 12 5.2-1.3 9-6.5 9-12V5l-9-3z"></path>
+            </svg>
+            <div class="risk-shield__center">
+              <div class="risk-shield__num">{{ dash.alertsExt.value.length }}</div>
+              <div class="risk-shield__label">当前告警总数</div>
             </div>
+          </div>
+          <div class="risk-breakdown">
+            <div class="risk-row"><span class="risk-dot" style="background:#EF4444"></span><span>巡检点</span><span class="risk-val">{{ dash.alertsExt.value.filter(a => a.level === 'danger').length }}</span></div>
+            <div class="risk-row"><span class="risk-dot" style="background:#F59E0B"></span><span>设施设备</span><span class="risk-val">{{ dash.alertsExt.value.filter(a => a.level === 'warn').length }}</span></div>
+            <div class="risk-row"><span class="risk-dot" style="background:#6B8EAD"></span><span>气体异常</span><span class="risk-val">3</span></div>
+            <div class="risk-row"><span class="risk-dot" style="background:#22C55E"></span><span>安全行为</span><span class="risk-val">1</span></div>
+          </div>
+        </section>
+
+        <!-- 设备运行状态（复刻参考页面 device-status：环形图） -->
+        <section class="device-status card">
+          <div class="card-header">
+            <h3 class="section-title">设备运行状态</h3>
+          </div>
+          <div class="device-ring">
+            <svg viewBox="0 0 36 36" class="device-ring__svg">
+              <path class="ring-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+              <path class="ring-ok" stroke-dasharray="91.7, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+              <path class="ring-warn" stroke-dasharray="4.2, 100" stroke-dashoffset="-91.7" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+              <path class="ring-off" stroke-dasharray="4.2, 100" stroke-dashoffset="-95.9" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+            </svg>
+            <div class="device-ring__center">
+              <div class="device-ring__num">48</div>
+              <div class="device-ring__label">设备总数</div>
+            </div>
+          </div>
+          <div class="device-legend">
+            <div class="dl-item"><span class="dl-dot" style="background:#10B981"></span><span>正常</span><span class="dl-val">44台</span><span class="dl-pct">91.7%</span></div>
+            <div class="dl-item"><span class="dl-dot" style="background:#F59E0B"></span><span>告警</span><span class="dl-val">2台</span><span class="dl-pct">4.2%</span></div>
+            <div class="dl-item"><span class="dl-dot" style="background:#64748B"></span><span>离线</span><span class="dl-val">2台</span><span class="dl-pct">4.2%</span></div>
+          </div>
+        </section>
+
+        <!-- 能耗监测（复刻参考页面 energy-monitor：4项 + 同比 + 折线图） -->
+        <section class="energy-section card">
+          <div class="card-header">
+            <h3 class="section-title">能耗监测</h3>
+            <span class="rs-tag">今日</span>
+          </div>
+          <div class="energy-grid">
+            <div class="energy-item">
+              <div class="energy-label">今日用电</div>
+              <div class="energy-val">398<em>kWh</em></div>
+              <div class="energy-trend down">同比 ↓8.2%</div>
+            </div>
+            <div class="energy-item">
+              <div class="energy-label">今日用水</div>
+              <div class="energy-val">12.5<em>吨</em></div>
+              <div class="energy-trend down">同比 ↓5.1%</div>
+            </div>
+            <div class="energy-item">
+              <div class="energy-label">今日燃气</div>
+              <div class="energy-val">55<em>m³</em></div>
+              <div class="energy-trend up">同比 ↑3.3%</div>
+            </div>
+            <div class="energy-item">
+              <div class="energy-label">环境能耗</div>
+              <div class="energy-val">1.2<em>tce</em></div>
+              <div class="energy-trend down">同比 ↓6.7%</div>
+            </div>
+          </div>
+          <div class="energy-chart">
+            <svg viewBox="0 0 100 32" preserveAspectRatio="none" class="energy-chart__svg">
+              <defs>
+                <linearGradient id="energyArea" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#00E5FF" stop-opacity="0.35"></stop>
+                  <stop offset="100%" stop-color="#00E5FF" stop-opacity="0"></stop>
+                </linearGradient>
+              </defs>
+              <path class="energy-area" d="M0,24 L8,20 L16,22 L24,14 L32,16 L40,10 L48,12 L56,8 L64,11 L72,6 L80,9 L88,5 L100,7 L100,32 L0,32 Z" fill="url(#energyArea)"></path>
+              <path class="energy-line" d="M0,24 L8,20 L16,22 L24,14 L32,16 L40,10 L48,12 L56,8 L64,11 L72,6 L80,9 L88,5 L100,7" fill="none" stroke="#00E5FF" stroke-width="0.6" stroke-linecap="round" stroke-linejoin="round"></path>
+            </svg>
           </div>
         </section>
 
@@ -440,15 +509,50 @@ function closeApPopup(): void { dash.showApPopup.value = false }
 .s-val { font-size: 0.14rem; font-family: var(--hud-mono); color: #00E5FF; font-weight: bold; }
 .s-meta { font-size: 0.08rem; color: var(--hud-text-faint); }
 
-/* 安全风险 */
-.risk-section .risk-compact-grid { display: flex; flex-direction: column; gap: 0.06rem; }
-.risk-compact-card { background: rgba(0,0,0,0.2); border-radius: 0.04rem; padding: 0.08rem; }
-.risk-compact-value { font-size: 0.24rem; font-family: var(--hud-mono); color: #EF4444; font-weight: bold; }
-.risk-compact-label { font-size: 0.09rem; color: var(--hud-text-dim); margin-top: 0.02rem; }
-.risk-breakdown { display: flex; flex-direction: column; gap: 0.03rem; margin-top: 0.06rem; }
-.risk-row { display: flex; align-items: center; gap: 0.06rem; font-size: 0.09rem; color: var(--hud-text-dim); }
-.risk-dot { width: 0.06rem; height: 0.06rem; border-radius: 50%; flex-shrink: 0; }
-.risk-val { margin-left: auto; font-family: var(--hud-mono); color: var(--hud-text); }
+/* 安全风险 —— 盾牌视觉 */
+.risk-section .risk-shield {
+  position: relative; display: flex; align-items: center; justify-content: center;
+  height: 1.2rem; margin: 0.04rem 0;
+}
+.risk-shield__icon {
+  position: absolute; width: 1rem; height: 1rem; color: rgba(0, 229, 255, 0.12);
+  filter: drop-shadow(0 0 0.12rem rgba(0, 229, 255, 0.2));
+}
+.risk-shield__center { position: relative; display: flex; flex-direction: column; align-items: center; gap: 0.02rem; z-index: 1; }
+.risk-shield__num { font-size: 0.34rem; font-family: var(--hud-mono); color: #EF4444; font-weight: bold; line-height: 1; text-shadow: 0 0 0.12rem rgba(239, 68, 68, 0.4); }
+.risk-shield__label { font-size: 0.1rem; color: var(--hud-text-dim); letter-spacing: 1px; }
+.risk-breakdown { display: flex; flex-direction: column; gap: 0.04rem; }
+.risk-row { display: flex; align-items: center; gap: 0.08rem; font-size: 0.1rem; color: var(--hud-text-dim); padding: 0.03rem 0.06rem; background: rgba(0,0,0,0.15); border-radius: 0.03rem; }
+.risk-dot { width: 0.06rem; height: 0.06rem; border-radius: 50%; flex-shrink: 0; box-shadow: 0 0 0.06rem currentColor; }
+.risk-val { margin-left: auto; font-family: var(--hud-mono); color: var(--hud-text); font-weight: bold; }
+
+/* 设备运行状态 —— 环形图 */
+.device-status .device-ring { position: relative; width: 1.4rem; height: 1.4rem; margin: 0.04rem auto; }
+.device-ring__svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.ring-bg { fill: none; stroke: rgba(255, 255, 255, 0.05); stroke-width: 3.2; }
+.ring-ok { fill: none; stroke: #10B981; stroke-width: 3.2; stroke-linecap: round; }
+.ring-warn { fill: none; stroke: #F59E0B; stroke-width: 3.2; stroke-linecap: round; }
+.ring-off { fill: none; stroke: #64748B; stroke-width: 3.2; stroke-linecap: round; }
+.device-ring__center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.02rem; }
+.device-ring__num { font-size: 0.24rem; font-family: var(--hud-mono); color: #00E5FF; font-weight: bold; }
+.device-ring__label { font-size: 0.09rem; color: var(--hud-text-dim); }
+.device-legend { display: flex; flex-direction: column; gap: 0.04rem; }
+.dl-item { display: flex; align-items: center; gap: 0.08rem; font-size: 0.1rem; color: var(--hud-text-dim); padding: 0.03rem 0.06rem; background: rgba(0,0,0,0.15); border-radius: 0.03rem; }
+.dl-dot { width: 0.06rem; height: 0.06rem; border-radius: 50%; }
+.dl-val { margin-left: auto; color: var(--hud-text); font-family: var(--hud-mono); }
+.dl-pct { color: var(--hud-text-faint); font-family: var(--hud-mono); font-size: 0.09rem; min-width: 0.4rem; text-align: right; }
+
+/* 能耗监测 */
+.energy-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.06rem; }
+.energy-item { padding: 0.08rem; background: rgba(8, 14, 26, 0.6); border: 1px solid rgba(0, 229, 255, 0.1); border-radius: 0.04rem; display: flex; flex-direction: column; gap: 0.02rem; }
+.energy-label { font-size: 0.09rem; color: var(--hud-text-dim); }
+.energy-val { font-size: 0.16rem; font-family: var(--hud-mono); color: #00E5FF; font-weight: bold; }
+.energy-val em { font-style: normal; font-size: 0.09rem; color: var(--hud-text-dim); margin-left: 0.02rem; font-weight: 400; }
+.energy-trend { font-size: 0.08rem; font-family: var(--hud-mono); }
+.energy-trend.down { color: #10B981; }
+.energy-trend.up { color: #EF4444; }
+.energy-chart { margin-top: 0.06rem; height: 0.7rem; background: rgba(0,0,0,0.2); border-radius: 0.04rem; padding: 0.06rem; }
+.energy-chart__svg { width: 100%; height: 100%; }
 
 /* 信息播报 */
 .broadcast-section .broadcast-list { display: flex; flex-direction: column; gap: 0.04rem; }
