@@ -70,6 +70,23 @@ export function useMapbox() {
       } catch (e) {
         console.warn("Failed to apply sci-fi colors:", e)
       }
+      // P0 terrain —— 整改计划第二节 Map Layer "terrain"，3D 地形增强数字孪生感
+      // mock 阶段无内网 DEM 瓦片时静默跳过；有 token 则用 mapbox-dem tileset
+      if (!useCartoFallback) {
+        try {
+          if (!instance.getSource("dd-terrain-dem")) {
+            ;(instance as any).addSource("dd-terrain-dem", {
+              type: "raster-dem",
+              url: "mapbox://mapbox.mapbox-terrain-dem-v1",
+              tileSize: 512,
+              maxzoom: 14,
+            })
+          }
+          ;(instance as any).setTerrain({ source: "dd-terrain-dem", exaggeration: 1.2 })
+        } catch (e) {
+          console.warn("Failed to set terrain:", e)
+        }
+      }
     })
 
     instance.on("load", () => {
