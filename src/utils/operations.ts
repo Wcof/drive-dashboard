@@ -95,3 +95,17 @@ export function acquireControl(robotId: string, operator: string): void {
   }
   addAuditLog({ action: "calibrate", operator, targetId: robotId, targetType: "robot", reason: "获取电子控制权并切入远控" })
 }
+
+// ── 释放电子控制权（ADR#152 S15）──
+export function releaseControl(robotId: string, operator: string): void {
+  const robots = storage.get<Robot[]>(STORAGE_KEYS.ROBOTS) ?? []
+  const idx = robots.findIndex((r) => r.id === robotId)
+  if (idx !== -1) {
+    robots[idx] = { ...robots[idx], status: RobotStatus.ONLINE, updatedAt: new Date().toISOString() }
+    storage.set(STORAGE_KEYS.ROBOTS, robots)
+    const { state } = getMockDataService()
+    const sIdx = state.robots.findIndex((r) => r.id === robotId)
+    if (sIdx !== -1) state.robots[sIdx] = robots[idx]
+  }
+  addAuditLog({ action: "calibrate", operator, targetId: robotId, targetType: "robot", reason: "释放电子控制权" })
+}

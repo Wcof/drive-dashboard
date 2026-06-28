@@ -110,7 +110,7 @@ const yTicks = computed(() => {
 
 <style scoped>
 .env-modal-mask { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 9999; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(0.1rem); }
-.env-modal { width: 90%; max-width: 7rem; max-height: 80vh; background: rgba(10,16,26,0.92); border: 1px solid rgba(197,168,123,0.4); border-radius: 0.08rem; padding: 0.24rem; overflow-y: auto; position: relative; }
+.env-modal { width: 90%; max-width: 7rem; background: rgba(10,16,26,0.92); border: 1px solid rgba(197,168,123,0.4); border-radius: 0.08rem; padding: 0.24rem; position: relative; }
 .env-modal-close { position: absolute; top: 0.16rem; right: 0.2rem; font-size: 0.28rem; color: #fff; cursor: pointer; }
 .env-modal-header { margin-bottom: 0.2rem; padding-bottom: 0.16rem; border-bottom: 1px solid rgba(107,142,173,0.22); }
 .env-modal-title { margin: 0; font-size: 0.18rem; color: var(--hud-accent); letter-spacing: 0.02rem; }

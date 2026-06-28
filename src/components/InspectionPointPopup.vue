@@ -180,7 +180,7 @@ function focusAlert(): void {
 .tag.safe { background: rgba(34,197,94,0.18); color: #22C55E; border: 1px solid rgba(34,197,94,0.4); }
 .tag.warn { background: rgba(245,158,11,0.18); color: #F59E0B; border: 1px solid rgba(245,158,11,0.4); }
 .popup-close-btn { margin-left: auto; cursor: pointer; color: var(--hud-text-dim); font-size: 0.1400rem; }
-.popup-body { padding: 0.1200rem 0.1400rem; max-height: 4.8000rem; overflow-y: auto; }
+.popup-body { padding: 0.1200rem 0.1400rem; }
 .popup-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 0.0800rem; margin-bottom: 0.1200rem; }
 .popup-stat { display: flex; flex-direction: column; gap: 0.0200rem; }
 .popup-stat-label { font-size: 0.1000rem; color: var(--hud-text-dim); letter-spacing: 0.5px; }

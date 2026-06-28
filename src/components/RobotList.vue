@@ -1,13 +1,46 @@
 <script setup lang="ts">
-// RobotList —— 左面板下区：机器人列表
+// RobotList —— 左面板下区：机器人列表（增强版）
+// 补全：任务名 / 位置坐标 / 最后上报时间
+// 大屏适配：自动轮播翻页，无滑轮滚动（与 AlertStream/InspectionExpiryPanel 一致）
 
-import { computed } from "vue"
+import { computed, ref, onMounted, onUnmounted } from "vue"
 import { useRobots } from "@/composables/useRobots"
+import { useTasks } from "@/composables/useTasks"
 import { useSelectedRobot } from "@/composables/useSelectedRobot"
+import { useDashboard } from "@/composables/useDashboard"
+import { useLockState } from "@/composables/useLockState"
 import { RobotStatus } from "@/types/robot"
+import type { Robot } from "@/types/robot"
 
 const { robots } = useRobots()
+const { byId: taskById } = useTasks()
 const { select, selectedRobot } = useSelectedRobot()
+const dash = useDashboard()
+const { isLocked } = useLockState()
+
+// === 自动轮播翻页（每页 3 台，5s 翻页，无滑轮） ===
+const PAGE_SIZE = 3
+const ITEM_H = 96 // 设计稿 px（含 gap）
+const pageHeight = ITEM_H * PAGE_SIZE
+const totalPages = computed(() => Math.max(1, Math.ceil(robots.value.length / PAGE_SIZE)))
+const currentPage = ref(0)
+let pageTimer: ReturnType<typeof setInterval> | null = null
+onMounted(() => {
+  pageTimer = setInterval(() => {
+    if (totalPages.value <= 1) return
+    currentPage.value = (currentPage.value + 1) % totalPages.value
+  }, 5000)
+})
+onUnmounted(() => { if (pageTimer) clearInterval(pageTimer) })
+
+function onRobotClick(r: { id: string }): void {
+  // 锁定态：仅聚焦地图，不切入聚焦态（保持只读态势）
+  dash.setFocus('robot', r.id)
+  dash.state.autoplayEnabled = false
+  if (isLocked.value) return
+  select(r.id)
+  dash.state.currentRobotId = r.id
+}
 
 const totalMileage = computed(() => {
   return robots.value.reduce((acc, r) => acc + (r.batteryLevel * 12 + 120), 18000).toLocaleString()
@@ -36,6 +69,36 @@ function batteryLevelClass(b: number): string {
   if (b < 40) return "mid"
   return "high"
 }
+
+// 解析任务名
+function getRobotTaskName(r: Robot): string {
+  if (!r.currentTaskId) return "—"
+  const task = taskById(r.currentTaskId).value
+  return task?.name ?? r.currentTaskId
+}
+
+// 格式化位置坐标
+function formatPosition(r: Robot): string {
+  if (!r.position) return "—"
+  const lat = r.position.latitude.toFixed(4)
+  const lng = r.position.longitude.toFixed(4)
+  return `${lng}, ${lat}`
+}
+
+// 格式化最后上报时间
+function formatLastTime(iso: string): string {
+  if (!iso) return "—"
+  const d = new Date(iso)
+  const now = new Date()
+  const diffMs = now.getTime() - d.getTime()
+  const diffMin = Math.floor(diffMs / 60000)
+  if (diffMin < 1) return "刚刚"
+  if (diffMin < 60) return `${diffMin}分钟前`
+  const diffHour = Math.floor(diffMin / 60)
+  if (diffHour < 24) return `${diffHour}小时前`
+  const diffDay = Math.floor(diffHour / 24)
+  return `${diffDay}天前`
+}
 </script>
 
 <template>
@@ -45,40 +108,64 @@ function batteryLevelClass(b: number): string {
       <div class="rs-total">总里程 <strong class="highlight">{{ totalMileage }} km</strong></div>
     </div>
     
-    <div class="robot-list">
-      <div 
-        v-for="r in robots" 
-        :key="r.id" 
-        class="robot-item" 
-        :class="{ 'robot-item--active': selectedRobot?.id === r.id }" 
-        @click="select(r.id)"
-      >
-        <div class="ri-info">
-          <div class="ri-header">
-            <span class="ri-name">
-              <span class="ri-indicator" :style="{ background: statusColor(r.status) }"></span>
-              {{ r.name }}
-            </span>
-            <span class="ri-status-tag" :class="r.status">
-              {{ STATUS_TEXT[r.status] }}
-            </span>
-          </div>
-          
-          <div class="ri-battery-section">
-            <span class="ri-battery-label">电量</span>
-            <div class="ri-battery-track">
-              <div 
-                class="ri-battery-fill" 
-                :class="batteryLevelClass(r.batteryLevel)" 
-                :style="{ width: r.batteryLevel + '%' }"
-              ></div>
+    <!-- 自动轮播视口（无滚动条），超出高度自动翻页 -->
+    <div class="robot-list-viewport">
+      <div class="robot-list-track" :style="{ transform: `translateY(${-currentPage * pageHeight}px)` }">
+        <div 
+          v-for="r in robots" 
+          :key="r.id" 
+          class="robot-item" 
+          :class="{ 'robot-item--active': selectedRobot?.id === r.id, 'robot-item--locked': isLocked }" 
+          :title="isLocked ? '锁定态仅查看，点击聚焦地图' : '点击查看机器人详情'"
+          @click="onRobotClick(r)"
+        >
+          <div class="ri-info">
+            <div class="ri-header">
+              <span class="ri-name">
+                <span class="ri-indicator" :style="{ background: statusColor(r.status) }"></span>
+                {{ r.name }}
+              </span>
+              <span class="ri-status-tag" :class="r.status">
+                {{ STATUS_TEXT[r.status] }}
+              </span>
             </div>
-            <span class="ri-battery-val" :class="batteryLevelClass(r.batteryLevel)">
-              {{ r.batteryLevel }}%
-            </span>
+            
+            <div class="ri-battery-section">
+              <span class="ri-battery-label">电量</span>
+              <div class="ri-battery-track">
+                <div 
+                  class="ri-battery-fill" 
+                  :class="batteryLevelClass(r.batteryLevel)" 
+                  :style="{ width: r.batteryLevel + '%' }"
+                ></div>
+              </div>
+              <span class="ri-battery-val" :class="batteryLevelClass(r.batteryLevel)">
+                {{ r.batteryLevel }}%
+              </span>
+            </div>
+
+            <!-- 扩展信息行：任务名 / 位置 / 上报时间 -->
+            <div class="ri-ext">
+              <span class="ri-ext-item" title="当前任务">
+                <span class="ri-ext-icon">📋</span>
+                <span class="ri-ext-text">{{ getRobotTaskName(r) }}</span>
+              </span>
+              <span class="ri-ext-item" title="位置坐标">
+                <span class="ri-ext-icon">📍</span>
+                <span class="ri-ext-text">{{ formatPosition(r) }}</span>
+              </span>
+              <span class="ri-ext-item" title="最后上报">
+                <span class="ri-ext-icon">🕐</span>
+                <span class="ri-ext-text">{{ formatLastTime(r.lastOnlineTime) }}</span>
+              </span>
+            </div>
           </div>
         </div>
       </div>
+    </div>
+    <!-- 翻页指示器 -->
+    <div v-if="totalPages > 1" class="rl-pagination">
+      <span v-for="i in totalPages" :key="i" class="rl-dot" :class="{ active: currentPage === i - 1 }"></span>
     </div>
   </section>
 </template>
@@ -113,11 +200,21 @@ function batteryLevelClass(b: number): string {
   margin-left: 0.0400rem;
 }
 
-.robot-list {
+/* 自动轮播视口 —— 固定高度，无滚动条 */
+.robot-list-viewport {
+  height: 288px; /* 3 × 96px */
+  overflow: hidden;
+  position: relative;
+}
+.robot-list-track {
   display: flex;
   flex-direction: column;
   gap: 0.0800rem;
+  transition: transform 0.5s ease;
 }
+.rl-pagination { display: flex; justify-content: center; gap: 4px; margin-top: 6px; }
+.rl-dot { width: 5px; height: 5px; border-radius: 50%; background: rgba(107,142,173,0.3); transition: all 0.3s; }
+.rl-dot.active { background: #00E5FF; width: 12px; border-radius: 3px; }
 
 .robot-item {
   background: rgba(8, 14, 26, 0.7);
@@ -126,6 +223,7 @@ function batteryLevelClass(b: number): string {
   padding: 0.1000rem 0.1200rem;
   cursor: pointer;
   transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+  height: 88px; /* 固定高度，确保翻页对齐 */
 }
 
 .robot-item:hover {
@@ -141,10 +239,13 @@ function batteryLevelClass(b: number): string {
   box-shadow: 0 0 0.1200rem rgba(0, 229, 255, 0.15);
 }
 
+.robot-item--locked { cursor: default; }
+.robot-item--locked:hover { border-color: rgba(0, 229, 255, 0.1); background: rgba(8, 14, 26, 0.7); transform: none; box-shadow: none; }
+
 .ri-info {
   display: flex;
   flex-direction: column;
-  gap: 0.0800rem;
+  gap: 0.0600rem;
 }
 
 .ri-header {
@@ -222,4 +323,34 @@ function batteryLevelClass(b: number): string {
 .ri-battery-val.high { color: #10B981; }
 .ri-battery-val.mid { color: #F59E0B; }
 .ri-battery-val.low { color: #EF4444; }
+
+/* 扩展信息行 */
+.ri-ext {
+  display: flex;
+  flex-direction: column;
+  gap: 0.0300rem;
+  padding-top: 0.0400rem;
+  border-top: 1px solid rgba(107, 142, 173, 0.1);
+}
+
+.ri-ext-item {
+  display: flex;
+  align-items: center;
+  gap: 0.0400rem;
+  font-size: 0.0900rem;
+  color: var(--hud-text-dim);
+}
+
+.ri-ext-icon {
+  font-size: 0.1000rem;
+  flex-shrink: 0;
+}
+
+.ri-ext-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--hud-text);
+  font-family: var(--hud-mono);
+}
 </style>

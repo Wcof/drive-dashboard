@@ -8,9 +8,11 @@ import { useRobots } from "@/composables/useRobots"
 import { makeMockImg } from "@/utils/mockImage"
 import { ROBOT_MILEAGE_KM } from "@/mock/seedDashboard"
 import { ROBOT_BIZ_STATUS_LABEL } from "@/mock/seedDashboard"
+import { useLockState } from "@/composables/useLockState"
 
-const { state, currentRobotExt, currentTask, currentInspectionPoint, openControlModal, openEnvMetricModal } = useDashboard()
+const { state, currentRobotExt, currentTask, currentInspectionPoint, openControlModal, openEnvMetricModal, openEvidenceModal } = useDashboard()
 const { byId } = useRobots()
+const { isLocked } = useLockState()
 
 const robot = computed(() => {
   if (currentRobotExt.value) return currentRobotExt.value
@@ -69,10 +71,25 @@ const bizStatus = computed(() => {
   return "executing"
 })
 
-function emit(event: "close"): void { void event }
+const emit = defineEmits<{ (e: "close"): void }>()
 
-function gotoDispatch(): void {
+function gotoRemoteControl(): void {
   openControlModal(robot.value?.id)
+}
+
+// 云台视角点击放大 → 打开证据预览弹窗
+function onPtzClick(): void {
+  openEvidenceModal({
+    image: bgImg.value,
+    title: `${robot.value?.id} | 云台实时视角 | ${ts.value}`,
+    device: robot.value?.id ?? '',
+    meta: `${robot.value?.id} | CAM-01 | ${ts.value}`,
+    thumbs: [
+      { img: bgImg.value, label: '可见光' },
+      { img: bgImg.value, label: '热红外' },
+      { img: bgImg.value, label: '广角' },
+    ]
+  })
 }
 
 // 挂件指标 → EnvMetricModal key 映射
@@ -145,12 +162,13 @@ function openMetric(label: string): void {
           <span>☰ 云台实时视角</span>
           <span class="ptz-live">● LIVE</span>
         </div>
-        <div class="ptz-view" :style="{ backgroundImage: `url('${bgImg}')` }">
+        <div class="ptz-view" :style="{ backgroundImage: `url('${bgImg}')` }" @click="onPtzClick">
           <div class="ptz-crosshair"></div>
           <div class="ptz-overlay-text">{{ robot.id }} | CAM-01 | {{ ts }}</div>
+          <div class="ptz-zoom-hint">点击放大</div>
         </div>
         <div class="ptz-action">
-          <button class="ptz-control-entry" @click="gotoDispatch">前往调度台</button>
+          <button class="ptz-control-entry" :disabled="isLocked" :class="{ 'ptz-control-entry--locked': isLocked }" :title="isLocked ? '锁定态不可远控' : '切入远控台'" @click="gotoRemoteControl">{{ isLocked ? '🔒 锁定态·只读' : '🔗 切入远控' }}</button>
         </div>
       </div>
       <div class="popup-metrics-section">
@@ -175,7 +193,7 @@ function openMetric(label: string): void {
 .tag.gold { background: rgba(197,168,123,0.18); color: var(--hud-accent); border: 1px solid rgba(197,168,123,0.4); }
 .popup-close-btn { margin-left: auto; cursor: pointer; color: var(--hud-text-dim); font-size: 0.1400rem; }
 .popup-close-btn:hover { color: var(--hud-text); }
-.popup-body { padding: 0.1200rem 0.1400rem; max-height: 4.6000rem; overflow-y: auto; }
+.popup-body { padding: 0.1200rem 0.1400rem; }
 .popup-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 0.0800rem; margin-bottom: 0.1200rem; }
 .popup-stat { display: flex; flex-direction: column; gap: 0.0200rem; }
 .popup-stat.span-2 { grid-column: span 2; }
@@ -197,9 +215,13 @@ function openMetric(label: string): void {
 .ptz-crosshair::before { top: 50%; left: 0; right: 0; height: 1px; }
 .ptz-crosshair::after { left: 50%; top: 0; bottom: 0; width: 1px; }
 .ptz-overlay-text { position: absolute; bottom: 0.0600rem; left: 0.0800rem; font-size: 0.1000rem; color: #cfe3f7; font-family: var(--hud-mono); background: rgba(0,0,0,0.5); padding: 0.0200rem 0.0600rem; border-radius: 0.0200rem; }
+.ptz-zoom-hint { position: absolute; bottom: 0.0600rem; right: 0.0800rem; font-size: 0.0900rem; color: var(--hud-accent); background: rgba(0,0,0,0.5); padding: 0.0200rem 0.0600rem; border-radius: 0.0200rem; opacity: 0.7; }
+.ptz-view:hover .ptz-zoom-hint { opacity: 1; }
 .ptz-action { padding: 0.0600rem 0.1000rem; background: rgba(0,0,0,0.3); }
 .ptz-control-entry { width: 100%; padding: 0.0600rem; background: rgba(197,168,123,0.15); border: 1px solid rgba(197,168,123,0.4); color: var(--hud-accent); border-radius: 0.0300rem; cursor: pointer; font-size: 0.1100rem; letter-spacing: 1px; }
 .ptz-control-entry:hover { background: rgba(197,168,123,0.25); }
+.ptz-control-entry--locked, .ptz-control-entry:disabled { cursor: not-allowed; opacity: 0.6; }
+.ptz-control-entry--locked:hover { background: rgba(197,168,123,0.15); }
 .popup-metrics-section { margin-top: 0.1000rem; }
 .popup-metrics-title { font-size: 0.1100rem; color: var(--hud-accent); margin-bottom: 0.0600rem; letter-spacing: 1px; }
 .env-realtime-grid { display: grid; gap: 0.0600rem; }

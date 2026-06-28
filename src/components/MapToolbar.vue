@@ -5,9 +5,13 @@
 import { ref, computed } from "vue"
 import { useDashboard } from "@/composables/useDashboard"
 import { useMapbox } from "@/composables/useMapbox"
+import { useSelectedRobot } from "@/composables/useSelectedRobot"
+import { useLockState } from "@/composables/useLockState"
 
-const { mapUi, searchType, searchInput, robotsExt, docks, apDevices, setFocus, resetToGlobal } = useDashboard()
+const { mapUi, searchType, searchInput, robotsExt, docks, apDevices, setFocus, resetToGlobal, openControlModal, state } = useDashboard()
 const { map } = useMapbox()
+const { select } = useSelectedRobot()
+const { isLocked } = useLockState()
 
 const showDisplayControl = ref(false)
 const showSearch = ref(false)
@@ -64,6 +68,29 @@ function gotoGlobal(): void {
   resetView()
 }
 
+// 调度台 → 进入聚焦态 + 打开调度弹窗（DispatchModal）
+function gotoDispatch(): void {
+  const target = robotsExt.value.find((r) => r.taskId) ?? robotsExt.value[0]
+  if (target) {
+    select(target.id)
+    state.currentRobotId = target.id
+    if (target.taskId) state.currentTaskId = target.taskId
+    // 打开调度台弹窗
+    state.autoplayEnabled = false
+    setFocus("robot", target.id)
+  }
+}
+
+// 驾驶舱 → 打开远程控制弹窗（ControlModal 承载云台+机器人远控）
+function gotoConsole(): void {
+  const target = robotsExt.value.find((r) => r.status === "safe") ?? robotsExt.value[0]
+  if (target) {
+    state.currentRobotId = target.id
+    openControlModal(target.id)
+    state.autoplayEnabled = false
+  }
+}
+
 const searchTypeOptions = [
   { value: "all", label: "全部" },
   { value: "robot", label: "机器人" },
@@ -74,16 +101,22 @@ const searchTypeOptions = [
 
 <template>
   <div class="map-toolbar">
-    <!-- 顶部地图模式 tab（复刻参考页面 segmented tabs） -->
-    <div class="map-tabs">
-      <button v-for="t in mapTabs" :key="t.key" class="map-tab" :class="{ active: activeTab === t.key }" @click="activeTab = t.key">{{ t.label }}</button>
-    </div>
+    <!-- 三组并排 tab 工具栏：地图总览 | 视觉重置 | 显示控制 -->
+    <div class="toolbar-row">
+      <!-- 组一：地图总览（地图模式 tabs） -->
+      <div class="toolbar-group segmented">
+        <button v-for="t in mapTabs" :key="t.key" class="seg-tab" :class="{ active: activeTab === t.key }" @click="activeTab = t.key">{{ t.label }}</button>
+      </div>
 
-    <!-- 工具按钮组 -->
-    <div class="toolbar-actions">
-      <!-- 显示控制 -->
-      <div class="toolbar-group">
-        <button class="toolbar-btn" :class="{ active: showDisplayControl }" @click="showDisplayControl = !showDisplayControl">显示控制</button>
+      <!-- 组二：视觉重置 -->
+      <div class="toolbar-group segmented">
+        <button class="seg-tab" @click="resetView">视觉重置</button>
+        <button class="seg-tab accent" @click="gotoGlobal">全局总览</button>
+      </div>
+
+      <!-- 组三：显示控制（popover） -->
+      <div class="toolbar-group segmented relative">
+        <button class="seg-tab" :class="{ active: showDisplayControl }" @click="showDisplayControl = !showDisplayControl">显示控制</button>
         <div v-if="showDisplayControl" class="display-control-popover">
           <label class="dc-item"><input type="checkbox" v-model="mapUi.labels" /> 标注</label>
           <label class="dc-item"><input type="checkbox" v-model="mapUi.robots" /> 机器人</label>
@@ -94,7 +127,7 @@ const searchTypeOptions = [
         </div>
       </div>
 
-      <!-- 搜索定位 -->
+      <!-- 辅助：搜索定位 + 调度/驾驶舱入口（保留，归入第二行） -->
       <div class="toolbar-group">
         <button class="toolbar-btn" :class="{ active: showSearch }" @click="showSearch = !showSearch">🔍 搜索定位</button>
         <div v-if="showSearch" class="search-popover">
@@ -107,11 +140,8 @@ const searchTypeOptions = [
           </div>
         </div>
       </div>
-
-      <button class="toolbar-btn" @click="resetView">视角重置</button>
-      <button class="toolbar-btn accent" @click="gotoGlobal">全局总览</button>
-      <button class="toolbar-btn accent" @click="setFocus('robot', 'robot-north-1')">调度台</button>
-      <button class="toolbar-btn accent" @click="setFocus('robot', 'robot-east-1')">驾驶舱</button>
+      <button class="toolbar-btn accent" :disabled="isLocked" :class="{ 'toolbar-btn--disabled': isLocked }" :title="isLocked ? '锁定态不可调度' : '进入调度台'" @click="gotoDispatch">调度台</button>
+      <button class="toolbar-btn accent" :disabled="isLocked" :class="{ 'toolbar-btn--disabled': isLocked }" :title="isLocked ? '锁定态不可远控' : '进入驾驶舱远控'" @click="gotoConsole">驾驶舱</button>
     </div>
   </div>
 </template>
@@ -121,27 +151,35 @@ const searchTypeOptions = [
   position: absolute; top: 0.16rem; left: 50%; transform: translateX(-50%); z-index: 26;
   display: flex; flex-direction: column; align-items: center; gap: 0.10rem; pointer-events: auto;
 }
-/* 顶部地图模式 tab —— 分段式 */
-.map-tabs {
+/* 三组并排 tab 工具栏 */
+.toolbar-row {
+  display: flex; align-items: center; gap: 0.12rem; flex-wrap: wrap; justify-content: center;
+}
+.toolbar-group { display: inline-flex; align-items: center; }
+.toolbar-group.relative { position: relative; }
+/* 分段式 tab 组 —— 三个 tab 组统一外观 */
+.segmented {
   display: inline-flex; gap: 0.02rem; padding: 0.03rem;
   background: rgba(8, 14, 26, 0.78); border: 1px solid rgba(0, 229, 255, 0.22);
   border-radius: 9.9900rem; backdrop-filter: blur(0.10rem);
   box-shadow: 0 0.04rem 0.16rem rgba(0, 0, 0, 0.4);
 }
-.map-tab {
+.seg-tab {
   padding: 0.05rem 0.16rem; font-size: 0.11rem; color: var(--hud-text-dim); letter-spacing: 1px;
   border: 0; border-radius: 9.9900rem; background: transparent; cursor: pointer;
   transition: all 0.2s ease; white-space: nowrap;
 }
-.map-tab:hover { color: var(--hud-text); }
-.map-tab.active {
+.seg-tab:hover { color: var(--hud-text); }
+.seg-tab.active {
   color: #030610; font-weight: 600;
   background: linear-gradient(135deg, #00E5FF, #6B8EAD);
   box-shadow: 0 0 0.10rem rgba(0, 229, 255, 0.5);
 }
-/* 工具按钮组 */
-.toolbar-actions { display: flex; gap: 0.08rem; align-items: flex-start; }
-.toolbar-group { position: relative; }
+.seg-tab.accent.active {
+  background: linear-gradient(135deg, #C5A87B, #8EAD6B);
+  box-shadow: 0 0 0.10rem rgba(197, 168, 123, 0.5);
+}
+/* 辅助按钮（搜索/调度/驾驶舱） */
 .toolbar-btn {
   padding: 0.06rem 0.14rem; font-size: 0.11rem; color: var(--hud-text-dim); letter-spacing: 0.01rem;
   border: 1px solid rgba(0, 229, 255, 0.25); border-radius: 999px;
@@ -152,6 +190,8 @@ const searchTypeOptions = [
 .toolbar-btn.active { color: #00E5FF; border-color: rgba(0, 229, 255, 0.6); background: rgba(0, 229, 255, 0.12); }
 .toolbar-btn.accent { border-color: rgba(197, 168, 123, 0.3); }
 .toolbar-btn.accent:hover { border-color: rgba(197, 168, 123, 0.6); color: var(--hud-accent); background: rgba(197, 168, 123, 0.1); }
+.toolbar-btn--disabled, .toolbar-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.toolbar-btn--disabled:hover, .toolbar-btn:disabled:hover { background: rgba(8, 14, 26, 0.7); border-color: rgba(0, 229, 255, 0.25); color: var(--hud-text-dim); }
 
 .display-control-popover {
   position: absolute; top: 100%; left: 0; margin-top: 0.06rem;
@@ -178,7 +218,7 @@ const searchTypeOptions = [
   color: var(--hud-text); border-radius: 0.04rem; font-size: 0.11rem;
 }
 .search-input:focus { border-color: var(--hud-accent); outline: none; }
-.search-results { margin-top: 0.06rem; max-height: 2rem; overflow-y: auto; }
+.search-results { margin-top: 0.06rem; }
 .search-result-item {
   display: block; width: 100%; padding: 0.04rem 0.08rem; background: transparent; border: none;
   color: var(--hud-text-dim); font-size: 0.11rem; cursor: pointer; text-align: left; border-radius: 0.02rem;

@@ -1,0 +1,522 @@
+{
+  "pass": 58,
+  "fail": 0,
+  "components": {
+    "App": {
+      "pass": 8,
+      "fail": 0,
+      "items": [
+        {
+          "name": "app-root 根节点",
+          "pass": true,
+          "detail": ""
+        },
+        {
+          "name": "map-layer 地图层全屏",
+          "pass": true,
+          "detail": ""
+        },
+        {
+          "name": "hud-stage UI层",
+          "pass": true,
+          "detail": ""
+        },
+        {
+          "name": "锁定态生效",
+          "pass": true,
+          "detail": ""
+        },
+        {
+          "name": "Space 双向切换轮播",
+          "pass": true,
+          "detail": "active:false→true→false"
+        },
+        {
+          "name": "时间轴节点存在",
+          "pass": true,
+          "detail": "nodes=5"
+        },
+        {
+          "name": "时间轴节点可点击",
+          "pass": true,
+          "detail": ""
+        },
+        {
+          "name": "任务池自动翻页",
+          "pass": true,
+          "detail": "1→2"
+        }
+      ]
+    },
+    "ScaleContainer": {
+      "pass": 5,
+      "fail": 0,
+      "items": [
+        {
+          "name": "ScaleContainer 包裹 UI 层",
+          "pass": true,
+          "detail": ""
+        },
+        {
+          "name": "分辨率适配 1080P",
+          "pass": true,
+          "detail": "UI:1920x1080 地图:1920x1080"
+        },
+        {
+          "name": "分辨率适配 2K",
+          "pass": true,
+          "detail": "UI:1920x1080 地图:2560x1440"
+        },
+        {
+          "name": "分辨率适配 4K",
+          "pass": true,
+          "detail": "UI:1920x1080 地图:3840x2160"
+        },
+        {
+          "name": "分辨率适配 小屏",
+          "pass": true,
+          "detail": "UI:1920x1080 地图:1366x768"
+        }
+      ]
+    },
+    "TopBar": {
+      "pass": 3,
+      "fail": 0,
+      "items": [
+        {
+          "name": "TopBar 渲染",
+          "pass": true,
+          "detail": ""
+        },
+        {
+          "name": "TopBar 含时间/天气/安全天数",
+          "pass": true,
+          "detail": ""
+        },
+        {
+          "name": "TopBar 时钟实时跳动",
+          "pass": true,
+          "detail": "03:32:41→03:32:43"
+        }
+      ]
+    },
+    "MapStage": {
+      "pass": 1,
+      "fail": 0,
+      "items": [
+        {
+          "name": "MapStage 地图容器",
+          "pass": true,
+          "detail": "canvas=1"
+        }
+      ]
+    },
+    "FocusPanel": {
+      "pass": 1,
+      "fail": 0,
+      "items": [
+        {
+          "name": "FocusPanel 聚焦态容器",
+          "pass": true,
+          "detail": ""
+        }
+      ]
+    },
+    "GlobalOverview": {
+      "pass": 1,
+      "fail": 0,
+      "items": [
+        {
+          "name": "GlobalOverview 渲染",
+          "pass": true,
+          "detail": "cards=6"
+        }
+      ]
+    },
+    "RobotList": {
+      "pass": 3,
+      "fail": 0,
+      "items": [
+        {
+          "name": "RobotList 渲染",
+          "pass": true,
+          "detail": "robots=5"
+        },
+        {
+          "name": "RobotList 自动轮播视口",
+          "pass": true,
+          "detail": ""
+        },
+        {
+          "name": "RobotList 翻页指示器",
+          "pass": true,
+          "detail": ""
+        }
+      ]
+    },
+    "InspectionExpiryPanel": {
+      "pass": 3,
+      "fail": 0,
+      "items": [
+        {
+          "name": "InspectionExpiryPanel 渲染",
+          "pass": true,
+          "detail": ""
+        },
+        {
+          "name": "强检设备列表",
+          "pass": true,
+          "detail": "items=6"
+        },
+        {
+          "name": "紧迫度统计(4级)",
+          "pass": true,
+          "detail": "es-items=4"
+        }
+      ]
+    },
+    "Sidebar": {
+      "pass": 2,
+      "fail": 0,
+      "items": [
+        {
+          "name": "Sidebar 渲染",
+          "pass": true,
+          "detail": ""
+        },
+        {
+          "name": "安全风险盾牌",
+          "pass": true,
+          "detail": ""
+        }
+      ]
+    },
+    "AlertStream": {
+      "pass": 2,
+      "fail": 0,
+      "items": [
+        {
+          "name": "AlertStream 实时告警",
+          "pass": true,
+          "detail": "rows=5"
+        },
+        {
+          "name": "AlertStream 自动轮播视口",
+          "pass": true,
+          "detail": ""
+        }
+      ]
+    },
+    "MapToolbar": {
+      "pass": 1,
+      "fail": 0,
+      "items": [
+        {
+          "name": "MapToolbar 工具栏",
+          "pass": true,
+          "detail": ""
+        }
+      ]
+    },
+    "LayerToggle": {
+      "pass": 2,
+      "fail": 0,
+      "items": [
+        {
+          "name": "LayerToggle 可弹出",
+          "pass": true,
+          "detail": ""
+        },
+        {
+          "name": "LayerToggle 面板渲染",
+          "pass": true,
+          "detail": ""
+        }
+      ]
+    },
+    "MinimapOverlay": {
+      "pass": 2,
+      "fail": 0,
+      "items": [
+        {
+          "name": "MinimapOverlay 聚焦态全屏渲染",
+          "pass": true,
+          "detail": ""
+        },
+        {
+          "name": "小地图点位",
+          "pass": true,
+          "detail": "children=13"
+        }
+      ]
+    },
+    "AlertDetailModal": {
+      "pass": 2,
+      "fail": 0,
+      "items": [
+        {
+          "name": "告警详情弹窗",
+          "pass": true,
+          "detail": ""
+        },
+        {
+          "name": "6 闭环按钮",
+          "pass": true,
+          "detail": ""
+        }
+      ]
+    },
+    "EvidenceModal": {
+      "pass": 1,
+      "fail": 0,
+      "items": [
+        {
+          "name": "证据影像弹窗",
+          "pass": true,
+          "detail": ""
+        }
+      ]
+    },
+    "ControlModal": {
+      "pass": 1,
+      "fail": 0,
+      "items": [
+        {
+          "name": "远控控制台弹窗",
+          "pass": true,
+          "detail": ""
+        }
+      ]
+    },
+    "RemoteControlModal": {
+      "pass": 1,
+      "fail": 0,
+      "items": [
+        {
+          "name": "控制权弹窗",
+          "pass": true,
+          "detail": ""
+        }
+      ]
+    },
+    "AuditLogModal": {
+      "pass": 3,
+      "fail": 0,
+      "items": [
+        {
+          "name": "审计日志弹窗",
+          "pass": true,
+          "detail": ""
+        },
+        {
+          "name": "审计日志有记录",
+          "pass": true,
+          "detail": ""
+        },
+        {
+          "name": "分页逻辑(多页渲染/单页隐藏)",
+          "pass": true,
+          "detail": ""
+        }
+      ]
+    },
+    "ConfirmModal": {
+      "pass": 2,
+      "fail": 0,
+      "items": [
+        {
+          "name": "锁定确认弹窗",
+          "pass": true,
+          "detail": ""
+        },
+        {
+          "name": "确认按钮",
+          "pass": true,
+          "detail": ""
+        }
+      ]
+    },
+    "AlertActionModal": {
+      "pass": 1,
+      "fail": 0,
+      "items": [
+        {
+          "name": "锁定态告警点击 toast",
+          "pass": true,
+          "detail": ""
+        }
+      ]
+    },
+    "TakeoverModal": {
+      "pass": 1,
+      "fail": 0,
+      "items": [
+        {
+          "name": "接管弹窗(聚焦态)",
+          "pass": true,
+          "detail": ""
+        }
+      ]
+    },
+    "DispatchModal": {
+      "pass": 2,
+      "fail": 0,
+      "items": [
+        {
+          "name": "紧急派车入口",
+          "pass": true,
+          "detail": ""
+        },
+        {
+          "name": "调度弹窗",
+          "pass": true,
+          "detail": ""
+        }
+      ]
+    },
+    "WorkTicketTriggerModal": {
+      "pass": 1,
+      "fail": 0,
+      "items": [
+        {
+          "name": "任务反馈弹窗",
+          "pass": true,
+          "detail": ""
+        }
+      ]
+    },
+    "EnvMetricModal": {
+      "pass": 1,
+      "fail": 0,
+      "items": [
+        {
+          "name": "环境监测弹窗",
+          "pass": true,
+          "detail": ""
+        }
+      ]
+    },
+    "InspectionExpiryDetailModal": {
+      "pass": 2,
+      "fail": 0,
+      "items": [
+        {
+          "name": "强检设备详情弹窗",
+          "pass": true,
+          "detail": ""
+        },
+        {
+          "name": "30/15/5/0 天梯度表",
+          "pass": true,
+          "detail": ""
+        }
+      ]
+    },
+    "RobotPopup": {
+      "pass": 1,
+      "fail": 0,
+      "items": [
+        {
+          "name": "机器人弹窗/聚焦态",
+          "pass": true,
+          "detail": ""
+        }
+      ]
+    },
+    "DockPopup": {
+      "pass": 1,
+      "fail": 0,
+      "items": [
+        {
+          "name": "地图标记/Mapbox canvas",
+          "pass": true,
+          "detail": "markers=0 canvas=true"
+        }
+      ]
+    },
+    "ApPopup": {
+      "pass": 1,
+      "fail": 0,
+      "items": [
+        {
+          "name": "ApPopup 地图点位渲染",
+          "pass": true,
+          "detail": "mapbox=true"
+        }
+      ]
+    },
+    "InspectionPointPopup": {
+      "pass": 1,
+      "fail": 0,
+      "items": [
+        {
+          "name": "InspectionPointPopup 地图点位",
+          "pass": true,
+          "detail": "canvas=true mapbox=true"
+        }
+      ]
+    },
+    "global.css": {
+      "pass": 2,
+      "fail": 0,
+      "items": [
+        {
+          "name": "body overflow:hidden",
+          "pass": true,
+          "detail": ""
+        },
+        {
+          "name": "显示态无溢出滚动条",
+          "pass": true,
+          "detail": "[]"
+        }
+      ]
+    }
+  },
+  "startedAt": "2026-06-28T19:32:31.822Z",
+  "resolutions": [
+    {
+      "w": 1920,
+      "h": 1080,
+      "n": "1080P",
+      "hv": true,
+      "hs": "1920x1080",
+      "mf": true,
+      "ms": "1920x1080"
+    },
+    {
+      "w": 2560,
+      "h": 1440,
+      "n": "2K",
+      "hv": true,
+      "hs": "1920x1080",
+      "mf": true,
+      "ms": "2560x1440"
+    },
+    {
+      "w": 3840,
+      "h": 2160,
+      "n": "4K",
+      "hv": true,
+      "hs": "1920x1080",
+      "mf": true,
+      "ms": "3840x2160"
+    },
+    {
+      "w": 1366,
+      "h": 768,
+      "n": "小屏",
+      "hv": true,
+      "hs": "1920x1080",
+      "mf": true,
+      "ms": "1366x768"
+    }
+  ],
+  "endedAt": "2026-06-28T19:33:59.991Z",
+  "summary": {
+    "components": 30,
+    "pass": 58,
+    "fail": 0,
+    "total": 58
+  }
+}

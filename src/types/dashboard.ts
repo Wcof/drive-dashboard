@@ -152,6 +152,8 @@ export interface EvidenceModalData {
   meta: string
   title: string
   thumbs: { img: string; label: string }[]
+  /** AI 识别结果文本 */
+  eviResult?: string
 }
 
 // 充电站 popup 入参
@@ -208,10 +210,15 @@ export interface FacilityPoint {
 
 // 环境概览 KPI
 export interface EnvSummaryCard {
+  key: string // 对应 monitorPoint metrics 的 key（O2 / CH4 / CO / H2S / TVOC / Noise）
   icon: string
   label: string
   value: string
   status: "safe" | "warn" | "danger"
+  /** 采样时间 / 数据新鲜度 */
+  samplingTime?: string
+  /** 数据新鲜度：实时(real-time)、近期(recent)、历史(history) */
+  freshness?: "realtime" | "recent" | "history"
 }
 
 // 机器人总览卡
@@ -234,9 +241,28 @@ export interface PlanSummaryCard {
 
 // 安全风险细分
 export interface RiskBreakdownItem {
-  category: "infrared" | "device" | "gas" | "safeBehavior"
+  category: "infrared" | "device" | "gas" | "safeBehavior" | "monitorFailure"
   label: string
   value: number
+  /** 趋势：上升/下降/持平 */
+  trend?: "up" | "down" | "flat"
+}
+
+// 强检设备到期提醒
+export interface InspectionExpiryItem {
+  id: string
+  name: string
+  location: string
+  deadline: string // ISO date
+  daysRemaining: number // 30 / 15 / 5 / 0
+  category: string // 类别：灭火器/气体感应器/安全阀/报警器
+  // 详情扩展字段（用于详情弹窗展示）
+  lastInspectionDate?: string // 上次检验日期
+  inspectionCycle?: number // 检验周期（月）
+  responsiblePerson?: string // 责任人
+  riskLevel?: "低" | "中" | "高" // 风险等级
+  measures?: string[] // 控制措施
+  status?: "正常" | "临近到期" | "紧急" | "已过期" // 设备状态
 }
 
 // Coordinate 兼容（避免类型循环引用）

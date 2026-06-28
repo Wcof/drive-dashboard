@@ -17,6 +17,8 @@ import {
   seedRiskBreakdown,
   ROBOT_MILEAGE_KM,
 } from "@/mock/seedDashboard"
+import { getMockDataService } from "./useMockDataService"
+import { makeMockImg } from "@/utils/mockImage"
 import type {
   AlertExt,
   ApDevice,
@@ -130,7 +132,38 @@ const riskBreakdown = computed<RiskBreakdownItem[]>(() => seedRiskBreakdown)
 
 const currentRobotExt = computed<RobotExt | null>(() => robotsExt.value.find((r) => r.id === state.currentRobotId) ?? null)
 const currentTask = computed<TaskExt | null>(() => tasksExt.value[state.currentTaskId] ?? null)
-const currentAlert = computed<AlertExt | null>(() => alertsExt.value.find((a) => a.id === state.currentAlertId) ?? null)
+const currentAlert = computed<AlertExt | null>(() => {
+  // First try alertsExt (seedDashboard.ts - rich dashboard data)
+  const fromExt = alertsExt.value.find((a) => a.id === state.currentAlertId)
+  if (fromExt) return fromExt
+  // Fallback: try mock service alerts (seed.ts) and convert to AlertExt
+  try {
+    const mockAlert = getMockDataService().state.alerts.find((a) => a.id === state.currentAlertId)
+    if (mockAlert) {
+      const botExt = robotsExt.value.find((r) => r.id === mockAlert.robotId)
+      return {
+        id: mockAlert.id,
+        bgImg: makeMockImg(`Alert ${mockAlert.id}`, "#1a2b3c", "#3d5e7f"),
+        time: new Date(mockAlert.timestamp).toLocaleTimeString("zh-CN", { hour12: false }),
+        level: mockAlert.severity === "critical" ? "danger" as const : mockAlert.severity === "warning" ? "warn" as const : "safe" as const,
+        state: mockAlert.status === "active" ? "未确认" : "已处置",
+        device: botExt?.id ?? mockAlert.robotId,
+        loc: mockAlert.description?.slice(0, 20) ?? "",
+        defect: mockAlert.description ?? "",
+        taskId: mockAlert.taskId ?? "",
+        coords: botExt?.coords ?? [121.474, 31.230],
+        aimSafe: true,
+        targetLabel: mockAlert.title,
+        eviResult: mockAlert.description ?? "",
+        eviClass: "dim",
+        lastTime: "--",
+        lastResult: "无记录",
+        comp: "单次告警",
+      }
+    }
+  } catch { /* mock service not available */ }
+  return null
+})
 const currentDock = computed<Dock | null>(() => docks.value.find((d) => d.id === state.currentDockId) ?? null)
 const currentAp = computed<ApDevice | null>(() => apDevices.value.find((a) => a.id === state.currentApId) ?? null)
 

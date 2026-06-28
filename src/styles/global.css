@@ -7,9 +7,9 @@
   --hud-bg-panel: rgba(10, 16, 26, 0.78);
 
   /* 边框 */
-  --hud-border: rgba(107, 142, 173, 0.2);
-  --hud-border-subtle: rgba(107, 142, 173, 0.2);
-  --hud-border-focus: rgba(197, 168, 123, 0.4);
+  --hud-border: rgba(107, 142, 173, 0.22);
+  --hud-border-subtle: rgba(107, 142, 173, 0.12);
+  --hud-border-focus: rgba(197, 168, 123, 0.45);
 
   /* 文本 */
   --hud-text: #E2E8F0;
@@ -18,7 +18,7 @@
 
   /* 强调色 —— 钛金 + 雾蓝 */
   --hud-accent: #C5A87B;          /* 钛金 */
-  --hud-accent-dim: rgba(197, 168, 123, 0.4);
+  --hud-accent-dim: rgba(197, 168, 123, 0.45);
   --hud-accent-smog: #6B8EAD;     /* 雾蓝 */
 
   /* 状态色 */
@@ -35,6 +35,11 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* 分层适配：UI 层由 ScaleContainer 用 transform: scale 锁定 1920×1080
+ * 根字号固定 100px = 1rem，不再随视口动态变化（避免 rem 与 scale 双重缩放冲突）
+ * 地图层（Mapbox Canvas）absolute 全屏铺满视口，不进入 scale 容器 */
+html { font-size: 100px; }
+
 html, body, #app {
   max-width: 100%;
   height: 100%;
@@ -43,20 +48,22 @@ html, body, #app {
   color: var(--hud-text);
   font-family: var(--hud-text-font);
   overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-#app { display: flex; flex-direction: column; position: relative; }
+#app { position: relative; }
 
-/* 全局滚动条 —— 钛金悬浮 */
-*::-webkit-scrollbar { width: 0.0800rem; height: 0.0800rem; background: transparent; }
-*::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.03); border: 0; }
-*::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.35); border-radius: 9.9900rem; border: 0; box-shadow: none; }
-*::-webkit-scrollbar-thumb:hover { background: rgba(197, 168, 123, 0.45); }
+/* 全局滚动条 —— 智慧大屏默认不显示滚动条（人工处理信息场景下才允许）
+ * 大屏展示态禁止滑轮滚动，内容通过自动轮播/分屏呈现 */
+*::-webkit-scrollbar { width: 0; height: 0; background: transparent; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: transparent; }
 
 /* 通用：面板标题前置蓝色竖条 */
 .panel-title,
 .section-title {
-  font-size: 0.1400rem;
+  font-size: 0.1300rem;
   font-weight: 500;
   color: var(--hud-text);
   display: flex;
@@ -67,10 +74,10 @@ html, body, #app {
   content: "";
   display: inline-block;
   width: 0.0300rem;
-  height: 0.1300rem;
+  height: 0.1200rem;
   background: #00E5FF;
-  box-shadow: 0 0 0.0800rem rgba(0, 229, 255, 0.8);
-  margin-right: 0.0800rem;
+  box-shadow: 0 0 0.0600rem rgba(0, 229, 255, 0.6);
+  margin-right: 0.0600rem;
   border-radius: 0.0150rem;
 }
 
@@ -79,11 +86,11 @@ html, body, #app {
   background: var(--hud-bg-elev);
   border: 1px solid var(--hud-border-subtle);
   border-radius: 0.0400rem;
-  padding: 0.1600rem;
-  backdrop-filter: blur(0.1200rem);
+  padding: 0.1400rem;
+  backdrop-filter: blur(0.1000rem);
   display: flex;
   flex-direction: column;
-  gap: 0.1000rem;
+  gap: 0.0800rem;
 }
 .card-header {
   display: flex;
@@ -97,13 +104,13 @@ html, body, #app {
 
 /* 通用标签 */
 .tag {
-  font-size: 0.1100rem; padding: 0.0200rem 0.0800rem; border-radius: 0.0200rem;
-  border: 1px solid transparent; cursor: pointer;
+  font-size: 0.1000rem; padding: 0.0200rem 0.0600rem; border-radius: 0.0200rem;
+  border: 1px solid transparent; cursor: default;
 }
-.tag.gold { color: var(--hud-accent); border-color: var(--hud-border-focus); background: rgba(197, 168, 123, 0.1); }
+.tag.gold { color: var(--hud-accent); border-color: var(--hud-border-focus); background: rgba(197, 168, 123, 0.12); }
 
 /* 通用状态点 */
-.dot { display: inline-block; width: 0.0600rem; height: 0.0600rem; border-radius: 50%; margin-right: 0.0600rem; }
+.dot { display: inline-block; width: 0.0500rem; height: 0.0500rem; border-radius: 50%; margin-right: 0.0400rem; }
 .dot.smog { background: var(--hud-accent-smog); }
 .dot.safe { background: var(--hud-ok); }
 .dot.charging { background: var(--hud-info); }
@@ -118,8 +125,8 @@ html, body, #app {
 
 /* 通用按钮 */
 .btn {
-  padding: 0.0500rem 0.1400rem; border: 1px solid var(--hud-border); background: transparent;
-  color: var(--hud-text-dim); cursor: pointer; border-radius: 9.9900rem; font-size: 0.1100rem;
+  padding: 0.0500rem 0.1200rem; border: 1px solid var(--hud-border); background: transparent;
+  color: var(--hud-text-dim); cursor: pointer; border-radius: 9.9900rem; font-size: 0.1000rem;
   transition: all 0.2s ease;
 }
 .btn:hover { border-color: var(--hud-border-focus); color: var(--hud-accent); }
@@ -134,7 +141,7 @@ html, body, #app {
 .mapboxgl-ctrl-group button,
 .maplibregl-ctrl-group button {
   border: 0 !important;
-  border-bottom: 1px solid rgba(255,255,255,0.06) !important;
+  border-bottom: 1px solid rgba(255,255,255,0.05) !important;
   background: transparent !important;
 }
 .mapboxgl-ctrl-group button:last-child,
@@ -146,15 +153,15 @@ html, body, #app {
 .maplibregl-popup-content {
   background: rgba(10, 16, 26, 0.96) !important;
   border: 1px solid var(--hud-accent) !important;
-  border-radius: 0.0600rem !important;
+  border-radius: 0.0500rem !important;
   padding: 0 !important;
-  box-shadow: 0 0.1200rem 0.4000rem rgba(0,0,0,0.6), 0 0 0.2000rem rgba(197,168,123,0.08) !important;
-  backdrop-filter: blur(0.1600rem);
-  max-width: 3.4000rem;
+  box-shadow: 0 0.1000rem 0.4000rem rgba(0,0,0,0.6), 0 0 0.2000rem rgba(197,168,123,0.08) !important;
+  backdrop-filter: blur(0.1400rem);
+  max-width: 3.2000rem;
   color: var(--hud-text);
 }
 .maplibregl-popup-tip { border-top-color: var(--hud-accent) !important; }
-.maplibregl-popup-close-button { color: var(--hud-text-dim) !important; font-size: 0.2000rem !important; }
+.maplibregl-popup-close-button { color: var(--hud-text-dim) !important; font-size: 0.1800rem !important; }
 .maplibregl-popup-close-button:hover { color: var(--hud-accent) !important; }
 
 /* === 弹窗通用指挥大屏样式 === */
@@ -162,90 +169,102 @@ html, body, #app {
   position: fixed; inset: 0; z-index: 9999;
   display: flex; align-items: center; justify-content: center;
   background: rgba(2, 4, 8, 0.78);
-  backdrop-filter: blur(0.1200rem);
+  backdrop-filter: blur(0.1000rem);
   animation: modalFade 0.22s ease;
 }
 @keyframes modalFade { from { opacity: 0; } to { opacity: 1; } }
 .modal {
   position: relative;
   background: linear-gradient(180deg, rgba(12, 18, 30, 0.98) 0%, rgba(8, 12, 22, 0.98) 100%);
-  border: 1px solid rgba(197, 168, 123, 0.32);
-  border-radius: 0.1000rem;
-  padding: 0.2600rem 0.2800rem 0.2200rem;
-  min-width: 4.2000rem; max-width: 5.6000rem;
-  backdrop-filter: blur(0.1600rem);
-  box-shadow: 0 0.2400rem 0.6000rem rgba(0, 0, 0, 0.7), 0 0 0.2400rem rgba(197, 168, 123, 0.06);
+  border: 1px solid rgba(197, 168, 123, 0.28);
+  border-radius: 0.0800rem;
+  padding: 0.2200rem 0.2400rem 0.1800rem;
+  min-width: 3.8000rem; max-width: 5.2000rem;
+  backdrop-filter: blur(0.1400rem);
+  box-shadow: 0 0.2000rem 0.5000rem rgba(0, 0, 0, 0.7), 0 0 0.2000rem rgba(197, 168, 123, 0.05);
   animation: modalSlide 0.26s cubic-bezier(0.2, 0.8, 0.3, 1);
 }
-@keyframes modalSlide { from { opacity: 0; transform: translateY(0.1600rem) scale(0.97); } to { opacity: 1; transform: none; } }
+@keyframes modalSlide { from { opacity: 0; transform: translateY(0.1400rem) scale(0.97); } to { opacity: 1; transform: none; } }
 .modal::before {
-  content: ""; position: absolute; top: 0; left: 0.2200rem; right: 0.2200rem; height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(197, 168, 123, 0.7) 50%, transparent);
+  content: ""; position: absolute; top: 0; left: 0.2000rem; right: 0.2000rem; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(197, 168, 123, 0.6) 50%, transparent);
 }
 .modal::after {
-  content: ""; position: absolute; left: 0; bottom: -1px; width: 0.6000rem; height: 0.0200rem;
+  content: ""; position: absolute; left: 0; bottom: -1px; width: 0.5000rem; height: 0.0200rem;
   background: linear-gradient(90deg, var(--hud-accent), transparent);
   border-radius: 0 0.0200rem 0.0200rem 0;
 }
 .modal__title {
-  display: flex; align-items: center; gap: 0.1000rem;
-  font-size: 0.1600rem; font-weight: 600; letter-spacing: 1px;
-  color: var(--hud-accent); margin-bottom: 0.1800rem;
-  padding-bottom: 0.1400rem; border-bottom: 1px solid rgba(107, 142, 173, 0.18);
+  display: flex; align-items: center; gap: 0.0800rem;
+  font-size: 0.1500rem; font-weight: 600; letter-spacing: 1px;
+  color: var(--hud-accent); margin-bottom: 0.1600rem;
+  padding-bottom: 0.1200rem; border-bottom: 1px solid rgba(107, 142, 173, 0.15);
 }
 .modal__title::before {
-  content: ""; display: inline-block; width: 0.0300rem; height: 0.1600rem;
+  content: ""; display: inline-block; width: 0.0300rem; height: 0.1500rem;
   background: var(--hud-accent); border-radius: 1px;
 }
-.modal__body { color: var(--hud-text); font-size: 0.1300rem; margin-bottom: 0.2000rem; }
-.modal__actions { display: flex; gap: 0.1000rem; justify-content: flex-end; padding-top: 0.0400rem; }
+.modal__body { color: var(--hud-text); font-size: 0.1200rem; margin-bottom: 0.1800rem; }
+.modal__actions { display: flex; gap: 0.0800rem; justify-content: flex-end; padding-top: 0.0400rem; }
 .modal .btn {
-  padding: 0.0800rem 0.2200rem; border: 1px solid rgba(107, 142, 173, 0.32);
+  padding: 0.0600rem 0.1800rem; border: 1px solid rgba(107, 142, 173, 0.28);
   background: transparent; color: var(--hud-text-dim);
-  cursor: pointer; border-radius: 0.0600rem; font-size: 0.1200rem;
+  cursor: pointer; border-radius: 0.0400rem; font-size: 0.1100rem;
   letter-spacing: 1px; transition: all 0.2s ease;
 }
 .modal .btn:hover { border-color: var(--hud-border-focus); color: var(--hud-text); background: rgba(197, 168, 123, 0.06); }
-.modal .btn--confirm { color: var(--hud-accent); border-color: rgba(197, 168, 123, 0.55); background: rgba(197, 168, 123, 0.08); }
-.modal .btn--confirm:hover { background: rgba(197, 168, 123, 0.18); box-shadow: 0 0 0.1200rem rgba(197, 168, 123, 0.2); }
+.modal .btn--confirm { color: var(--hud-accent); border-color: rgba(197, 168, 123, 0.5); background: rgba(197, 168, 123, 0.08); }
+.modal .btn--confirm:hover { background: rgba(197, 168, 123, 0.18); box-shadow: 0 0 0.1000rem rgba(197, 168, 123, 0.2); }
 .modal .btn--confirm:disabled { opacity: 0.35; cursor: not-allowed; box-shadow: none; }
 
 /* 弹窗内表单 */
-.modal .form-row { margin-top: 0.1200rem; display: flex; flex-direction: column; gap: 0.0600rem; }
-.modal .form-row label { color: var(--hud-text-dim); font-size: 0.1100rem; letter-spacing: 1px; }
+.modal .form-row { margin-top: 0.1000rem; display: flex; flex-direction: column; gap: 0.0500rem; }
+.modal .form-row label { color: var(--hud-text-dim); font-size: 0.1000rem; letter-spacing: 1px; }
 .modal .form-row input, .modal .form-row textarea, .modal .form-row select {
   background: rgba(5, 8, 14, 0.7);
-  border: 1px solid rgba(107, 142, 173, 0.22);
-  color: var(--hud-text); padding: 0.0800rem 0.1200rem;
-  border-radius: 0.0600rem; font-size: 0.1300rem;
+  border: 1px solid rgba(107, 142, 173, 0.18);
+  color: var(--hud-text); padding: 0.0600rem 0.1000rem;
+  border-radius: 0.0400rem; font-size: 0.1200rem;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
   resize: none;
 }
 .modal .form-row input:focus, .modal .form-row textarea:focus, .modal .form-row select:focus {
-  outline: none; border-color: rgba(197, 168, 123, 0.55);
-  box-shadow: 0 0 0 0.0200rem rgba(197, 168, 123, 0.1);
+  outline: none; border-color: rgba(197, 168, 123, 0.5);
+  box-shadow: 0 0 0 0.0150rem rgba(197, 168, 123, 0.1);
 }
 .modal .hint {
-  color: var(--hud-text-faint); font-size: 0.1100rem; margin-top: 0.1000rem;
-  padding: 0.0800rem 0.1200rem; background: rgba(107, 142, 173, 0.06);
-  border-radius: 0.0600rem; border-left: 0.0200rem solid var(--hud-accent-smog);
+  color: var(--hud-text-faint); font-size: 0.1000rem; margin-top: 0.0800rem;
+  padding: 0.0600rem 0.1000rem; background: rgba(107, 142, 173, 0.05);
+  border-radius: 0.0400rem; border-left: 0.0200rem solid var(--hud-accent-smog);
 }
 
 /* 弹窗内信息块 */
 .modal .info-block {
-  display: flex; align-items: center; gap: 0.1000rem;
-  padding: 0.1000rem 0.1400rem; margin-bottom: 0.1600rem;
-  background: rgba(107, 142, 173, 0.08);
+  display: flex; align-items: center; gap: 0.0800rem;
+  padding: 0.0800rem 0.1200rem; margin-bottom: 0.1400rem;
+  background: rgba(107, 142, 173, 0.06);
   border-left: 0.0300rem solid var(--hud-accent-smog);
-  border-radius: 0 0.0600rem 0.0600rem 0;
-  font-size: 0.1200rem; color: var(--hud-text-dim);
+  border-radius: 0 0.0400rem 0.0400rem 0;
+  font-size: 0.1100rem; color: var(--hud-text-dim);
 }
 .modal .warn-block {
-  padding: 0.1000rem 0.1400rem; margin-bottom: 0.1600rem;
-  background: rgba(245, 158, 11, 0.08);
+  padding: 0.0800rem 0.1200rem; margin-bottom: 0.1400rem;
+  background: rgba(245, 158, 11, 0.06);
   border-left: 0.0300rem solid var(--hud-warn);
-  border-radius: 0 0.0600rem 0.0600rem 0;
-  font-size: 0.1200rem; color: var(--hud-warn);
+  border-radius: 0 0.0400rem 0.0400rem 0;
+  font-size: 0.1100rem; color: var(--hud-warn);
 }
-.modal .desc { color: var(--hud-text); margin-bottom: 0.1400rem; line-height: 1.6; }
+.modal .desc { color: var(--hud-text); margin-bottom: 0.1200rem; line-height: 1.6; }
+
+/* === 全局动画 === */
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideUp { from { opacity: 0; transform: translateY(0.1000rem); } to { opacity: 1; transform: translateY(0); } }
+@keyframes pulseGlow { 0%, 100% { box-shadow: 0 0 0.0600rem currentColor; } 50% { box-shadow: 0 0 0.1600rem currentColor; } }
+
+/* 选中态高亮 */
+.selected-glow { box-shadow: 0 0 0.1200rem rgba(0, 229, 255, 0.3), inset 0 0 0.2000rem rgba(0, 229, 255, 0.03); }
+
+/* 切换动画 */
+.v-enter-active, .v-leave-active { transition: opacity 0.2s ease, transform 0.2s ease; }
+.v-enter-from, .v-leave-to { opacity: 0; transform: translateY(0.0600rem); }
 

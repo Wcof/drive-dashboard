@@ -1,7 +1,8 @@
 <script setup lang="ts">
-// App 根布局 —— 数字孪生指挥大屏
+// App 根布局 —— 数字孪生指挥大屏（增强版）
 // 顶部标题栏 | 地图全屏（80%）+ 左右浮动面板（20%）| 底部任务流转
 // 整合 useDashboard 驱动所有弹窗/popup/时间轴/任务筛选/自动漫游
+// 闭环：看证据 → 远控复核 → 下单处置
 
 import { ref, computed, onUnmounted, onMounted, watch } from "vue"
 import { createMockDataService } from "@/mock/mockDataService"
@@ -10,6 +11,7 @@ import { useSelectedRobot } from "@/composables/useSelectedRobot"
 import { useLockState, pendingAutoLock } from "@/composables/useLockState"
 import { useMapbox } from "@/composables/useMapbox"
 import { useDashboard } from "@/composables/useDashboard"
+import { teardownScale } from "@/composables/useScale"
 import TopBar from "@/components/TopBar.vue"
 import MapStage from "@/components/MapStage.vue"
 import Sidebar from "@/components/Sidebar.vue"
@@ -35,13 +37,16 @@ import RobotPopup from "@/components/RobotPopup.vue"
 import InspectionPointPopup from "@/components/InspectionPointPopup.vue"
 import DockPopup from "@/components/DockPopup.vue"
 import ApPopup from "@/components/ApPopup.vue"
+import InspectionExpiryPanel from "@/components/InspectionExpiryPanel.vue"
+import ScaleContainer from "@/components/ScaleContainer.vue"
+import InspectionExpiryDetailModal from "@/components/InspectionExpiryDetailModal.vue"
 
 const service = createMockDataService()
 setMockDataService(service)
 onUnmounted(() => service.stop())
 
 const { isFocused, selectedRobot } = useSelectedRobot()
-const { unlock, lock, resetLockTimer } = useLockState()
+const { unlock, lock, resetLockTimer, isLocked } = useLockState()
 const dash = useDashboard()
 
 const showLayerToggle = ref(false)
@@ -56,6 +61,12 @@ const terminateTarget = ref<string | null>(null)
 const showWorkTicketTrigger = ref(false)
 const showRemoteControl = ref(false)
 const showAuditLog = ref(false)
+const inspectionExpiryTarget = ref<string | null>(null)
+const lockToast = ref<string | null>(null)
+// S20: 任务执行反馈
+const taskFeedbackTarget = ref<string | null>(null)
+const taskFeedbackText = ref("")
+const taskFeedbackEntries = ref<Record<string, { text: string; time: string }[]>>({})
 
 function onRequestLock(): void { lockConfirm.value = true }
 function onRequestUnlock(): void { unlockConfirm.value = true }
@@ -72,6 +83,29 @@ function onPreempt(taskId: string): void { preemptTarget.value = taskId }
 function onTerminate(taskId: string): void { terminateTarget.value = taskId }
 function onWorkTicketTrigger(): void { showWorkTicketTrigger.value = true }
 function onRemoteControl(): void { showRemoteControl.value = true }
+function onInspectionExpiryDetail(itemId: string): void { inspectionExpiryTarget.value = itemId }
+
+// S20: 任务执行反馈
+function submitTaskFeedback(): void {
+  if (!taskFeedbackTarget.value || !taskFeedbackText.value.trim()) return
+  if (!taskFeedbackEntries.value[taskFeedbackTarget.value]) {
+    taskFeedbackEntries.value[taskFeedbackTarget.value] = []
+  }
+  taskFeedbackEntries.value[taskFeedbackTarget.value].push({
+    text: taskFeedbackText.value.trim(),
+    time: new Date().toLocaleTimeString("zh-CN", { hour12: false })
+  })
+  taskFeedbackText.value = ""
+  taskFeedbackTarget.value = null
+}
+
+// 锁定态点击反馈 toast（3s 自动消失）
+let lockToastTimer: ReturnType<typeof setTimeout> | null = null
+function notifyLocked(msg: string = '🔒 锁定态：仅查看态势，解锁后可操作'): void {
+  lockToast.value = msg
+  if (lockToastTimer) clearTimeout(lockToastTimer)
+  lockToastTimer = setTimeout(() => { lockToast.value = null }, 3000)
+}
 
 const { map } = useMapbox()
 
@@ -92,23 +126,17 @@ const filteredTaskPool = computed(() => {
   return dash.taskPool.value.filter((t) => t.state === f)
 })
 
-// === 右面板统计 ===
-const facilityTotal = computed(() => 12 + 28 + 16 + dash.apDevices.value.length)
-const dockChargingCount = computed(() => dash.docks.value.filter(d => d.status === 'charging').length)
-const dockFullCount = computed(() => dash.docks.value.filter(d => d.status === 'safe').length)
-const dockQueueCount = computed(() => dash.docks.value.filter(d => d.status === 'warn').length)
-
-// 信息播报（复刻参考页面 broadcast-panel）
-const broadcastMsgs = computed(() => {
-  const msgs: { type: string; text: string }[] = [
-    { type: 'normal', text: 'robot-north-1 完成E区动力站房特巡，结果正常' },
-    { type: 'normal', text: 'robot-east-1 正在执行B区例行安防巡检' },
-    { type: 'alert', text: '2#高压冷凝机组压力异常，已自动派单' },
-    { type: 'normal', text: 'A区-主干道充电站 robot-center-1 充电完成，待离站' },
-    { type: 'normal', text: 'robot-west-1 电量低于20%，正在返航C区基站' },
-  ]
-  return msgs
-})
+// 告警锚点点击 —— 看证据 → 远控复核 → 下单处置 的闭环入口
+function onAlertAnchorClick(alertId: string): void {
+  dash.setFocus('alert', alertId)
+  dash.state.autoplayEnabled = false
+  // 锁定态只聚焦不弹窗，并 toast 提示
+  if (!isLocked.value) {
+    dash.openAlertDetailModal()
+  } else {
+    notifyLocked('🔒 锁定态：已聚焦告警位置，解锁后可查看详情并处置')
+  }
+}
 
 // === 自动漫游（8s 轮播） ===
 let autoplayTimer: ReturnType<typeof setInterval> | null = null
@@ -131,307 +159,351 @@ function tickAutoplay(): void {
 
 onMounted(() => {
   autoplayTimer = setInterval(tickAutoplay, 8000)
+  // === 全局键盘快捷键（演示便利性） ===
+  // Esc：关闭当前最上层弹窗/popup；Space：暂停/继续自动轮播
+  window.addEventListener('keydown', onGlobalKeydown)
 })
 onUnmounted(() => {
   if (autoplayTimer) clearInterval(autoplayTimer)
+  window.removeEventListener('keydown', onGlobalKeydown)
+  teardownScale()
 })
 
-// 点击时间轴节点跳转
-function onTimelineNodeClick(node: { status: string; alertId?: string; coords: [number, number] }): void {
+function onGlobalKeydown(e: KeyboardEvent): void {
+  // 输入框内不拦截
+  const t = e.target as HTMLElement
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return
+  if (e.key === 'Escape') {
+    // 按优先级关闭最上层弹窗/popup
+    if (taskFeedbackTarget.value) { taskFeedbackTarget.value = null; return }
+    if (ackAlertTarget.value) { ackAlertTarget.value = null; return }
+    if (takeoverTarget.value) { takeoverTarget.value = null; return }
+    if (dispatchTarget.value) { dispatchTarget.value = null; return }
+    if (preemptTarget.value) { preemptTarget.value = null; return }
+    if (terminateTarget.value) { terminateTarget.value = null; return }
+    if (showWorkTicketTrigger.value) { showWorkTicketTrigger.value = false; return }
+    if (showRemoteControl.value) { showRemoteControl.value = false; return }
+    if (showAuditLog.value) { showAuditLog.value = false; return }
+    if (inspectionExpiryTarget.value) { inspectionExpiryTarget.value = null; return }
+    if (dash.showAlertDetailModal.value) { dash.closeAlertDetailModal(); return }
+    if (dash.showEnvMetricModal.value) { dash.closeEnvMetricModal(); return }
+    if (dash.showControlModal.value) { dash.closeControlModal(); return }
+    if (dash.showEvidenceModal.value) { dash.closeEvidenceModal(); return }
+    if (dash.showRobotPopup.value) { closeRobotPopup(); return }
+    if (dash.showInspectionPointPopup.value) { closeInspectionPointPopup(); return }
+    if (dash.showDockPopup.value) { closeDockPopup(); return }
+    if (dash.showApPopup.value) { closeApPopup(); return }
+    if (lockConfirm.value) { lockConfirm.value = false; return }
+    if (unlockConfirm.value) { unlockConfirm.value = false; return }
+    if (autoLockConfirm.value) { autoLockConfirm.value = false; return }
+  } else if (e.key === ' ' || e.code === 'Space') {
+    // 避免按钮获焦时 Space 同时触发 onGlobalKeydown 与按钮 @click，导致双重 toggle
+    // preventDefault 阻止按钮默认 click，stopPropagation 阻止冒泡，blur 移除焦点
+    e.preventDefault()
+    e.stopPropagation()
+    if (t && t.tagName === 'BUTTON') t.blur()
+    dash.state.autoplayEnabled = !dash.state.autoplayEnabled
+  }
+}
+
+// 点击时间轴节点跳转（增强：danger/warn 节点自动打开告警详情）
+function onTimelineNodeClick(node: { status: string; alertId?: string; coords: [number, number]; name?: string }): void {
   dash.state.autoplayEnabled = false
   if (node.alertId) {
     dash.setFocus("alert", node.alertId)
+    // danger/warn 节点自动打开告警详情弹窗（锁定态只聚焦 + toast）
+    if ((node.status === "danger" || node.status === "warn") && !isLocked.value) {
+      dash.openAlertDetailModal()
+    } else if ((node.status === "danger" || node.status === "warn") && isLocked.value) {
+      notifyLocked('🔒 锁定态：已聚焦告警节点，解锁后可查看详情')
+    }
+  } else if (node.status === "danger" || node.status === "warn") {
+    // 无 alertId 的异常节点：仅地图聚焦 + 视觉提示
+    dash.setFocus("node", node.name ?? "")
   }
   if (map.value) {
     map.value.easeTo({ center: node.coords, zoom: 17, duration: 800 })
   }
 }
 
-// 点击任务池项切换任务
+// 点击任务池项切换任务（增强：打开对应机器人弹窗；锁定态 toast）
 function onTaskPoolClick(task: { tk: string; bot: string }): void {
-  dash.withTaskSelection(task.tk, task.bot)
+  dash.state.autoplayEnabled = false
+  if (isLocked.value) {
+    dash.setFocus("robot", task.bot)
+    notifyLocked('🔒 锁定态：已聚焦机器人位置，解锁后可查看详情')
+    return
+  }
+  // S20: 任务执行反馈入口 —— 先设置反馈弹窗，避免后续 setFocus 状态切换干扰
+  taskFeedbackTarget.value = task.tk
   dash.setFocus("robot", task.bot)
+  dash.withTaskSelection(task.tk, task.bot)
 }
 
-// popup 关闭 —— 同时暂停自动轮播，避免 8s 后 tickAutoplay 通过 setFocus 又把同类型 popup 重新打开
+// popup 关闭 —— 同时暂停自动轮播
 function closeRobotPopup(): void { dash.showRobotPopup.value = false; dash.state.autoplayEnabled = false }
 function closeInspectionPointPopup(): void { dash.showInspectionPointPopup.value = false; dash.state.autoplayEnabled = false }
 function closeDockPopup(): void { dash.showDockPopup.value = false; dash.state.autoplayEnabled = false }
 function closeApPopup(): void { dash.showApPopup.value = false; dash.state.autoplayEnabled = false }
+
+// === 任务池自动翻页（无滑轮，每页 4 条，5s 翻页） ===
+const TASK_POOL_PAGE_SIZE = 4
+const TASK_POOL_ITEM_H = 42 // 设计稿 px
+const taskPoolPageHeight = TASK_POOL_ITEM_H * TASK_POOL_PAGE_SIZE
+const taskPoolPages = computed(() => Math.max(1, Math.ceil(filteredTaskPool.value.length / TASK_POOL_PAGE_SIZE)))
+const taskPoolPage = ref(0)
+let taskPoolPageTimer: ReturnType<typeof setInterval> | null = null
+watch(taskPoolPages, () => { taskPoolPage.value = 0 })
+onMounted(() => {
+  taskPoolPageTimer = setInterval(() => {
+    if (taskPoolPages.value <= 1) return
+    taskPoolPage.value = (taskPoolPage.value + 1) % taskPoolPages.value
+  }, 5000)
+})
+onUnmounted(() => { if (taskPoolPageTimer) clearInterval(taskPoolPageTimer) })
+
+// === 告警锚点自动翻页（每页 5 条，4s 翻页） ===
+const ALERT_PAGE_SIZE = 5
+const ALERT_ITEM_H = 36
+const alertPageHeight = ALERT_ITEM_H * ALERT_PAGE_SIZE
+const alertPages = computed(() => Math.max(1, Math.ceil(dash.alertsExt.value.length / ALERT_PAGE_SIZE)))
+const alertPage = ref(0)
+let alertPageTimer: ReturnType<typeof setInterval> | null = null
+onMounted(() => {
+  alertPageTimer = setInterval(() => {
+    if (alertPages.value <= 1) return
+    alertPage.value = (alertPage.value + 1) % alertPages.value
+  }, 4000)
+})
+onUnmounted(() => { if (alertPageTimer) clearInterval(alertPageTimer) })
 </script>
 
 <template>
+  <!-- 分层适配：地图层全屏铺满视口（不进入 scale），UI 层套 ScaleContainer 锁定 1920×1080 -->
   <div class="app-root" @click="resetLockTimer">
-    <TopBar
-      @toggle-layers="showLayerToggle = !showLayerToggle"
-      @request-lock="onRequestLock"
-      @request-unlock="onRequestUnlock"
-      @auto-lock-confirm="onAutoLockConfirm"
-    />
 
-    <main class="app-main">
-      <!-- 左侧浮动面板：运营态势 L1 -->
-      <aside v-if="!isFocused" class="panel left-panel">
-        <GlobalOverview />
-        <RobotList />
-        <!-- 任务池筛选（复刻参考页面 task-filter-tabs） -->
-        <div class="task-filter-section">
-          <div class="section-title">任务池</div>
-          <div class="task-filter-tabs">
-            <button v-for="t in taskFilterTabs" :key="t.key" class="tf-tab" :class="{ active: dash.state.taskFilter === t.key }" @click="dash.setTaskFilter(t.key as any)">{{ t.label }}</button>
-          </div>
-          <div class="task-pool-list">
-            <button v-for="task in filteredTaskPool" :key="task.tk" class="tp-item" @click="onTaskPoolClick(task)">
-              <span class="tp-name">{{ task.name }}</span>
-              <span class="tp-bot">{{ task.bot }}</span>
-              <span class="tp-prog">{{ task.prog }}</span>
-            </button>
-          </div>
-        </div>
-      </aside>
+    <!-- ===== 地图层：Mapbox/deck.gl Canvas 全屏铺满视口，无 scale 偏移 ===== -->
+    <div class="map-layer">
+      <MapStage v-if="!isFocused" />
+      <FocusPanel v-else :key="selectedRobot?.id" />
+    </div>
 
-      <!-- 中央数字孪生地图 -->
-      <div class="app-center">
-        <MapStage v-if="!isFocused" />
-        <FocusPanel v-else :key="selectedRobot?.id" />
-        <!-- 全息光栅扫描遮罩 -->
-        <div v-if="!isFocused" class="holo-scan"></div>
-        <!-- 地图暗角 -->
-        <div v-if="!isFocused" class="map-vignette"></div>
-        <!-- 地图工具栏（复刻参考页面 display-control + 搜索 + 视角重置 + 调度/驾驶舱） -->
-        <MapToolbar v-if="!isFocused" />
-        <LayerToggle v-if="showLayerToggle && !isFocused" />
-        <!-- 设施图例 -->
-        <div v-if="!isFocused" class="map-legend">
-          <div class="legend-title">设施图例</div>
-          <div class="legend-row"><span class="lg-dot" style="background:#C5A87B"></span>充电站</div>
-          <div class="legend-row"><span class="lg-dot" style="background:#EF4444"></span>消防站</div>
-          <div class="legend-row"><span class="lg-dot" style="background:#F59E0B"></span>储罐区</div>
-          <div class="legend-row"><span class="lg-dot" style="background:#6B8EAD"></span>生产车间</div>
-          <div class="legend-row"><span class="lg-dot" style="background:#3B82F6"></span>办公楼</div>
-        </div>
+    <!-- ===== UI 层：HUD 面板/TopBar/Sidebar/时间轴/弹窗，transform: scale 锁定设计稿 ===== -->
+    <ScaleContainer>
+      <div class="hud-stage">
+        <TopBar
+          @toggle-layers="showLayerToggle = !showLayerToggle"
+          @request-lock="onRequestLock"
+          @request-unlock="onRequestUnlock"
+          @auto-lock-confirm="onAutoLockConfirm"
+          @show-audit-log="showAuditLog = true"
+        />
 
-        <!-- 地图 Popup 层 -->
-        <div v-if="dash.showRobotPopup.value && dash.currentRobotExt.value" class="map-popup-anchor" :style="{ left: '35%', top: '8%' }">
-          <RobotPopup @close="closeRobotPopup" />
-        </div>
-        <div v-if="dash.showInspectionPointPopup.value && dash.currentInspectionPoint.value" class="map-popup-anchor" :style="{ left: '45%', top: '8%' }">
-          <InspectionPointPopup :point-id="dash.state.currentInspectionPointId ?? ''" @close="closeInspectionPointPopup" />
-        </div>
-        <div v-if="dash.showDockPopup.value && dash.currentDock.value" class="map-popup-anchor" :style="{ left: '25%', top: '8%' }">
-          <DockPopup :dock-id="dash.state.currentDockId ?? ''" @close="closeDockPopup" />
-        </div>
-        <div v-if="dash.showApPopup.value && dash.currentAp.value" class="map-popup-anchor" :style="{ left: '55%', top: '8%' }">
-          <ApPopup :ap-id="dash.state.currentApId ?? ''" @close="closeApPopup" />
-        </div>
-
-        <!-- 底部任务流转时间轴 L4（数据驱动） —— absolute 定位在 app-center 底部 -->
-        <div v-if="!isFocused" class="bottom-timeline">
-          <div class="tl-header">
-            <span class="tl-title">{{ currentTask?.timeline.title ?? '巡检任务执行流' }}</span>
-            <div class="tl-controls">
-              <button class="tl-auto-btn" :class="{ active: dash.state.autoplayEnabled }" @click="dash.state.autoplayEnabled = !dash.state.autoplayEnabled">
-                {{ dash.state.autoplayEnabled ? '⏸ 暂停轮播' : '▶ 自动轮播' }}
-              </button>
-              <span class="tl-sub">{{ dash.state.topContext }}</span>
+        <main class="app-main">
+          <!-- 左侧浮动面板：运营态势 L1（聚焦态隐藏，由 FocusPanel 占中央） -->
+          <aside v-if="!isFocused" class="panel left-panel">
+            <GlobalOverview />
+            <RobotList />
+            <!-- 任务池筛选 -->
+            <div class="task-filter-section">
+              <div class="section-title">任务池</div>
+              <div class="task-filter-tabs">
+                <button v-for="t in taskFilterTabs" :key="t.key" class="tf-tab" :class="{ active: dash.state.taskFilter === t.key }" @click="dash.setTaskFilter(t.key as any)">{{ t.label }}</button>
+              </div>
+              <!-- 任务池自动轮播：超出可见高度的项自动翻页，无需滑轮 -->
+              <div class="task-pool-viewport">
+                <div class="task-pool-track" :style="{ transform: `translateY(${-taskPoolPage * taskPoolPageHeight}px)` }">
+                  <button v-for="task in filteredTaskPool" :key="task.tk" class="tp-item" :class="[`tp-${task.state}`, { 'tp-item--locked': isLocked }]" :title="isLocked ? '锁定态仅聚焦位置' : '点击查看任务详情'" @click="onTaskPoolClick(task)">
+                    <span class="tp-name">{{ task.name }}</span>
+                    <span class="tp-bot">{{ task.bot }}</span>
+                    <div class="tp-prog-bar">
+                      <div class="tp-prog-fill" :class="`tp-prog-${task.state}`" :style="{ width: task.prog }"></div>
+                    </div>
+                    <span class="tp-prog">{{ task.prog }}</span>
+                  </button>
+                </div>
+              </div>
+              <!-- 翻页指示器（自动轮播时显示进度） -->
+              <div v-if="taskPoolPages > 1" class="tp-pagination">
+                <span v-for="i in taskPoolPages" :key="i" class="tp-dot" :class="{ active: taskPoolPage === i - 1 }"></span>
+              </div>
             </div>
-          </div>
-          <div class="tl-track">
-            <div class="f-line"></div>
-            <div class="f-flow"></div>
-            <div v-for="node in timelineNodes" :key="node.name" class="f-node" :class="node.status" :style="{ left: node.pos }" @click="onTimelineNodeClick(node)">
-              <div class="f-point"></div>
-              <div class="f-info">
-                <span class="time">{{ node.time }}</span>
-                <span class="name">{{ node.name }}</span>
-                <span v-if="node.res" class="res">{{ node.res }}</span>
+            <InspectionExpiryPanel @show-detail="onInspectionExpiryDetail" />
+          </aside>
+
+          <!-- 中央：UI 遮罩层（全息光栅/暗角/工具栏/图例/popup/时间轴），地图在底层 -->
+          <div class="app-center">
+            <!-- 全息光栅扫描遮罩 -->
+            <div v-if="!isFocused" class="holo-scan"></div>
+            <!-- 地图暗角 -->
+            <div v-if="!isFocused" class="map-vignette"></div>
+            <!-- 地图工具栏 -->
+            <MapToolbar v-if="!isFocused" />
+            <LayerToggle v-if="showLayerToggle && !isFocused" />
+            <!-- 设施图例 -->
+            <div v-if="!isFocused" class="map-legend">
+              <div class="legend-title">设施图例</div>
+              <div class="legend-row"><span class="lg-dot" style="background:#C5A87B"></span>充电站</div>
+              <div class="legend-row"><span class="lg-dot" style="background:#EF4444"></span>消防站</div>
+              <div class="legend-row"><span class="lg-dot" style="background:#F59E0B"></span>储罐区</div>
+              <div class="legend-row"><span class="lg-dot" style="background:#6B8EAD"></span>生产车间</div>
+              <div class="legend-row"><span class="lg-dot" style="background:#3B82F6"></span>办公楼</div>
+            </div>
+
+            <!-- 地图 Popup 层 -->
+            <div v-if="dash.showRobotPopup.value && dash.currentRobotExt.value" class="map-popup-anchor" :style="{ left: '30%', top: '14%' }">
+              <RobotPopup @close="closeRobotPopup" />
+            </div>
+            <div v-if="dash.showInspectionPointPopup.value && dash.currentInspectionPoint.value" class="map-popup-anchor" :style="{ left: '70%', top: '14%' }">
+              <InspectionPointPopup :point-id="dash.state.currentInspectionPointId ?? ''" @close="closeInspectionPointPopup" />
+            </div>
+            <div v-if="dash.showDockPopup.value && dash.currentDock.value" class="map-popup-anchor" :style="{ left: '30%', top: '52%' }">
+              <DockPopup :dock-id="dash.state.currentDockId ?? ''" @close="closeDockPopup" />
+            </div>
+            <div v-if="dash.showApPopup.value && dash.currentAp.value" class="map-popup-anchor" :style="{ left: '70%', top: '52%' }">
+              <ApPopup :ap-id="dash.state.currentApId ?? ''" @close="closeApPopup" />
+            </div>
+
+            <!-- 底部任务流转时间轴 L4 -->
+            <div v-if="!isFocused" class="bottom-timeline">
+              <div class="tl-header">
+                <span class="tl-title">{{ currentTask?.timeline.title ?? '巡检任务执行流' }}</span>
+                <div class="tl-controls">
+                  <button class="tl-auto-btn" :class="{ active: dash.state.autoplayEnabled }" @click="dash.state.autoplayEnabled = !dash.state.autoplayEnabled">
+                    {{ dash.state.autoplayEnabled ? '⏸ 暂停轮播' : '▶ 自动轮播' }}
+                  </button>
+                  <span class="tl-sub">{{ dash.state.topContext }}</span>
+                </div>
+              </div>
+              <div class="tl-track">
+                <div class="f-line"></div>
+                <div class="f-flow"></div>
+                <div v-for="node in timelineNodes" :key="node.name" class="f-node" :class="node.status" :style="{ left: node.pos }" @click="onTimelineNodeClick(node)" :title="node.status === 'danger' || node.status === 'warn' ? `点击查看告警详情 (${node.name})` : `跳转到${node.name}`">
+                  <div class="f-point"></div>
+                  <div class="f-info">
+                    <span class="time">{{ node.time }}</span>
+                    <span class="name">{{ node.name }}</span>
+                    <span v-if="node.res" class="res" :class="{ 'res-danger': node.status === 'danger', 'res-warn': node.status === 'warn' }">{{ node.res }}</span>
+                  </div>
+                  <span v-if="node.status === 'danger'" class="node-alert-badge">⚠</span>
+                </div>
+                <div class="tl-progress-indicator" :style="{ left: currentTask?.bar ?? '0%' }"></div>
+              </div>
+              <div class="tl-footer">
+                <span class="tl-task-state">{{ currentTask?.state === 'running' ? '● 执行中' : currentTask?.state }}</span>
+                <span class="tl-task-progress">已完成 {{ currentTask?.inspected ?? 0 }}/{{ (currentTask?.inspected ?? 0) + (currentTask?.anomaly ?? 0) + (currentTask?.review ?? 0) || 0 }} 项 | 预计剩余 {{ currentTask?.eta ?? '--' }}</span>
               </div>
             </div>
           </div>
+
+          <!-- 右侧浮动面板：风险告警 L1 -->
+          <aside class="panel right-panel">
+            <Sidebar
+              @takeover="onTakeover"
+              @dispatch="onDispatch"
+              @ack-alert="onAckAlert"
+              @preempt="onPreempt"
+              @terminate="onTerminate"
+              @work-ticket-trigger="onWorkTicketTrigger"
+              @remote-control="onRemoteControl"
+            />
+            <!-- 大屏扩展告警锚点列表（自动轮播翻页，无滑轮） -->
+            <div v-if="dash.alertsExt.value.length" class="alert-ext-section">
+              <div class="section-title">实时告警锚点</div>
+              <div class="alert-ext-viewport">
+                <div class="alert-ext-track" :style="{ transform: `translateY(${-alertPage * alertPageHeight}px)` }">
+                  <button v-for="a in dash.alertsExt.value" :key="a.id" class="ae-item" :class="[a.level, { 'ae-item--locked': isLocked }]" :title="isLocked ? '锁定态仅聚焦告警位置' : '点击查看告警详情并处置'" @click="onAlertAnchorClick(a.id)">
+                    <span class="ae-time">{{ a.time }}</span>
+                    <span class="ae-level" :class="a.level">{{ a.level === 'danger' ? '严重' : a.level === 'warn' ? '警告' : '正常' }}</span>
+                    <span class="ae-device">{{ a.device }}</span>
+                    <span class="ae-state">{{ a.state }}</span>
+                  </button>
+                </div>
+              </div>
+              <div v-if="alertPages > 1" class="ae-pagination">
+                <span v-for="i in alertPages" :key="i" class="ae-dot" :class="{ active: alertPage === i - 1 }"></span>
+              </div>
+            </div>
+          </aside>
+        </main>
+
+        <!-- 弹窗层（原有） -->
+        <ConfirmModal v-if="lockConfirm" title="锁定指挥大屏" message="锁定后将进入只读态势，确认锁定？" confirm-text="锁定" @confirm="onConfirmLock" @cancel="lockConfirm = false" />
+        <ConfirmModal v-if="unlockConfirm" title="解锁指挥大屏" message="解锁后可执行操作，确认解锁？" confirm-text="解锁" @confirm="onConfirmUnlock" @cancel="unlockConfirm = false" />
+        <ConfirmModal v-if="autoLockConfirm" title="即将自动锁定" message="15 分钟无操作，已自动锁定。是否立即解锁继续操作？" confirm-text="立即解锁" @confirm="onConfirmUnlock" @cancel="autoLockConfirm = false" />
+        <AlertActionModal v-if="ackAlertTarget" :alert-id="ackAlertTarget" @close="ackAlertTarget = null" />
+        <TakeoverModal v-if="takeoverTarget" :robot-id="takeoverTarget" @close="takeoverTarget = null" />
+        <DispatchModal v-if="dispatchTarget" :robot-id="dispatchTarget" @close="dispatchTarget = null" />
+        <PreemptModal v-if="preemptTarget" :task-id="preemptTarget" @close="preemptTarget = null" />
+        <TerminateModal v-if="terminateTarget" :task-id="terminateTarget" @close="terminateTarget = null" />
+        <WorkTicketTriggerModal v-if="showWorkTicketTrigger" @close="showWorkTicketTrigger = false" />
+        <RemoteControlModal v-if="showRemoteControl" @close="showRemoteControl = false" />
+        <AuditLogModal v-if="showAuditLog" @close="showAuditLog = false" />
+        <InspectionExpiryDetailModal v-if="inspectionExpiryTarget" :item-id="inspectionExpiryTarget" @close="inspectionExpiryTarget = null" />
+
+        <!-- 锁定态点击反馈 toast -->
+        <div v-if="lockToast" class="lock-toast">{{ lockToast }}</div>
+
+        <!-- 全局快捷键提示（演示便利性） -->
+        <div class="kbd-hint">
+          <span class="kbd-key">Esc</span><span class="kbd-desc">关闭弹窗</span>
+          <span class="kbd-key">Space</span><span class="kbd-desc">{{ dash.state.autoplayEnabled ? '暂停' : '继续' }}轮播</span>
         </div>
+
+        <!-- S20: 任务执行反馈弹窗 -->
+        <div v-if="taskFeedbackTarget" class="feedback-mask" @click.self="taskFeedbackTarget = null">
+          <div class="feedback-modal">
+            <div class="fb-title">📋 任务执行反馈</div>
+            <div class="fb-task-name">{{ dash.taskPool.value.find(t => t.tk === taskFeedbackTarget)?.name ?? taskFeedbackTarget }}</div>
+            
+            <!-- 已有反馈记录 -->
+            <div v-if="taskFeedbackEntries[taskFeedbackTarget]?.length" class="fb-history">
+              <div v-for="(entry, i) in taskFeedbackEntries[taskFeedbackTarget]" :key="i" class="fb-entry">
+                <span class="fb-entry-time">{{ entry.time }}</span>
+                <span class="fb-entry-text">{{ entry.text }}</span>
+              </div>
+            </div>
+
+            <div class="fb-input-row">
+              <textarea v-model="taskFeedbackText" class="fb-input" rows="2" placeholder="填写执行反馈（如：巡检完成，设备运行正常；或：发现异常已上报）…" />
+            </div>
+            <div class="fb-actions">
+              <button class="btn" @click="taskFeedbackTarget = null">关闭</button>
+              <button class="btn btn--confirm" :disabled="!taskFeedbackText.trim()" @click="submitTaskFeedback">提交反馈</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 弹窗层（新增：复刻参考页面） -->
+        <EvidenceModal />
+        <AlertDetailModal v-if="dash.showAlertDetailModal.value" />
+        <EnvMetricModal v-if="dash.showEnvMetricModal.value" />
+        <ControlModal v-if="dash.showControlModal.value" />
       </div>
-
-      <!-- 右侧浮动面板：风险告警 L1 -->
-      <aside class="panel right-panel">
-        <!-- 安全风险（复刻参考页面 operation-status：盾牌 + 4类分项） -->
-        <section class="risk-section card">
-          <div class="card-header">
-            <h3 class="section-title">安全风险</h3>
-            <span class="rs-tag">重点关注</span>
-          </div>
-          <div class="risk-shield">
-            <svg class="risk-shield__icon" viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
-              <path d="M12 2L3 5v6c0 5.5 3.8 10.7 9 12 5.2-1.3 9-6.5 9-12V5l-9-3z"></path>
-            </svg>
-            <div class="risk-shield__center">
-              <div class="risk-shield__num">{{ dash.alertsExt.value.length }}</div>
-              <div class="risk-shield__label">当前告警总数</div>
-            </div>
-          </div>
-          <div class="risk-breakdown">
-            <div class="risk-row"><span class="risk-dot" style="background:#EF4444"></span><span>巡检点</span><span class="risk-val">{{ dash.alertsExt.value.filter(a => a.level === 'danger').length }}</span></div>
-            <div class="risk-row"><span class="risk-dot" style="background:#F59E0B"></span><span>设施设备</span><span class="risk-val">{{ dash.alertsExt.value.filter(a => a.level === 'warn').length }}</span></div>
-            <div class="risk-row"><span class="risk-dot" style="background:#6B8EAD"></span><span>气体异常</span><span class="risk-val">3</span></div>
-            <div class="risk-row"><span class="risk-dot" style="background:#22C55E"></span><span>安全行为</span><span class="risk-val">1</span></div>
-          </div>
-        </section>
-
-        <!-- 设备运行状态（复刻参考页面 device-status：环形图） -->
-        <section class="device-status card">
-          <div class="card-header">
-            <h3 class="section-title">设备运行状态</h3>
-          </div>
-          <div class="device-ring">
-            <svg viewBox="0 0 36 36" class="device-ring__svg">
-              <path class="ring-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-              <path class="ring-ok" stroke-dasharray="91.7, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-              <path class="ring-warn" stroke-dasharray="4.2, 100" stroke-dashoffset="-91.7" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-              <path class="ring-off" stroke-dasharray="4.2, 100" stroke-dashoffset="-95.9" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-            </svg>
-            <div class="device-ring__center">
-              <div class="device-ring__num">48</div>
-              <div class="device-ring__label">设备总数</div>
-            </div>
-          </div>
-          <div class="device-legend">
-            <div class="dl-item"><span class="dl-dot" style="background:#10B981"></span><span>正常</span><span class="dl-val">44台</span><span class="dl-pct">91.7%</span></div>
-            <div class="dl-item"><span class="dl-dot" style="background:#F59E0B"></span><span>告警</span><span class="dl-val">2台</span><span class="dl-pct">4.2%</span></div>
-            <div class="dl-item"><span class="dl-dot" style="background:#64748B"></span><span>离线</span><span class="dl-val">2台</span><span class="dl-pct">4.2%</span></div>
-          </div>
-        </section>
-
-        <!-- 能耗监测（复刻参考页面 energy-monitor：4项 + 同比 + 折线图） -->
-        <section class="energy-section card">
-          <div class="card-header">
-            <h3 class="section-title">能耗监测</h3>
-            <span class="rs-tag">今日</span>
-          </div>
-          <div class="energy-grid">
-            <div class="energy-item">
-              <div class="energy-label">今日用电</div>
-              <div class="energy-val">398<em>kWh</em></div>
-              <div class="energy-trend down">同比 ↓8.2%</div>
-            </div>
-            <div class="energy-item">
-              <div class="energy-label">今日用水</div>
-              <div class="energy-val">12.5<em>吨</em></div>
-              <div class="energy-trend down">同比 ↓5.1%</div>
-            </div>
-            <div class="energy-item">
-              <div class="energy-label">今日燃气</div>
-              <div class="energy-val">55<em>m³</em></div>
-              <div class="energy-trend up">同比 ↑3.3%</div>
-            </div>
-            <div class="energy-item">
-              <div class="energy-label">环境能耗</div>
-              <div class="energy-val">1.2<em>tce</em></div>
-              <div class="energy-trend down">同比 ↓6.7%</div>
-            </div>
-          </div>
-          <div class="energy-chart">
-            <svg viewBox="0 0 100 32" preserveAspectRatio="none" class="energy-chart__svg">
-              <defs>
-                <linearGradient id="energyArea" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stop-color="#00E5FF" stop-opacity="0.35"></stop>
-                  <stop offset="100%" stop-color="#00E5FF" stop-opacity="0"></stop>
-                </linearGradient>
-              </defs>
-              <path class="energy-area" d="M0,24 L8,20 L16,22 L24,14 L32,16 L40,10 L48,12 L56,8 L64,11 L72,6 L80,9 L88,5 L100,7 L100,32 L0,32 Z" fill="url(#energyArea)"></path>
-              <path class="energy-line" d="M0,24 L8,20 L16,22 L24,14 L32,16 L40,10 L48,12 L56,8 L64,11 L72,6 L80,9 L88,5 L100,7" fill="none" stroke="#00E5FF" stroke-width="0.6" stroke-linecap="round" stroke-linejoin="round"></path>
-            </svg>
-          </div>
-        </section>
-
-        <!-- 信息播报（复刻参考页面 broadcast-panel） -->
-        <section class="broadcast-section card">
-          <div class="card-header">
-            <h3 class="section-title">信息播报</h3>
-          </div>
-          <div class="broadcast-list">
-            <div v-for="(msg, i) in broadcastMsgs" :key="i" class="broadcast-row" :class="{ alert: msg.type === 'alert' }">{{ msg.text }}</div>
-          </div>
-        </section>
-
-        <!-- 设施设备概览（复刻参考页面 env-summary） -->
-        <section class="facility-section card">
-          <div class="card-header">
-            <h3 class="section-title">设施设备概览</h3>
-            <span class="rs-tag">设施设备总数: <strong>{{ facilityTotal }}</strong></span>
-          </div>
-          <div class="summary-grid two-columns">
-            <div class="summary-item"><span class="s-label">温度计</span><span class="s-val">12</span><span class="s-meta">异常 0</span></div>
-            <div class="summary-item"><span class="s-label">直流阀</span><span class="s-val">28</span><span class="s-meta">异常 0</span></div>
-            <div class="summary-item"><span class="s-label">交流柜</span><span class="s-val">16</span><span class="s-meta">异常 0</span></div>
-            <div class="summary-item"><span class="s-label">AP设备</span><span class="s-val">{{ dash.apDevices.value.length }}</span><span class="s-meta">异常 0</span></div>
-          </div>
-        </section>
-
-        <!-- 充电站概览（复刻参考页面 dock-status） -->
-        <section class="dock-section card">
-          <div class="card-header">
-            <h3 class="section-title">充电站概览</h3>
-          </div>
-          <div class="summary-grid two-columns">
-            <div class="summary-item"><span class="s-label">充电站数量</span><span class="s-val">{{ dash.docks.value.length }}</span></div>
-            <div class="summary-item"><span class="s-label">当前充电台数</span><span class="s-val">{{ dockChargingCount }}</span></div>
-            <div class="summary-item"><span class="s-label">已充满未离站</span><span class="s-val">{{ dockFullCount }}</span></div>
-            <div class="summary-item"><span class="s-label">排队台数</span><span class="s-val">{{ dockQueueCount }}</span></div>
-          </div>
-        </section>
-
-        <Sidebar
-          @takeover="onTakeover"
-          @dispatch="onDispatch"
-          @ack-alert="onAckAlert"
-          @preempt="onPreempt"
-          @terminate="onTerminate"
-          @work-ticket-trigger="onWorkTicketTrigger"
-          @remote-control="onRemoteControl"
-        />
-        <!-- 告警列表（复刻参考页面 alerts 面板） -->
-        <div v-if="dash.alertsExt.value.length" class="alert-ext-section">
-          <div class="section-title">实时告警</div>
-          <div class="alert-ext-list">
-            <button v-for="a in dash.alertsExt.value" :key="a.id" class="ae-item" :class="a.level" @click="dash.setFocus('alert', a.id); dash.openAlertDetailModal()">
-              <span class="ae-time">{{ a.time }}</span>
-              <span class="ae-level" :class="a.level">{{ a.level === 'danger' ? '严重' : '警告' }}</span>
-              <span class="ae-device">{{ a.device }}</span>
-              <span class="ae-state">{{ a.state }}</span>
-            </button>
-          </div>
-        </div>
-      </aside>
-    </main>
-
-    <button class="app-root__audit-btn" @click="showAuditLog = true">审计日志</button>
-
-    <!-- 弹窗层（原有） -->
-    <ConfirmModal v-if="lockConfirm" title="锁定指挥大屏" message="锁定后将进入只读态势，确认锁定？" confirm-text="锁定" @confirm="onConfirmLock" @cancel="lockConfirm = false" />
-    <ConfirmModal v-if="unlockConfirm" title="解锁指挥大屏" message="解锁后可执行操作，确认解锁？" confirm-text="解锁" @confirm="onConfirmUnlock" @cancel="unlockConfirm = false" />
-    <ConfirmModal v-if="autoLockConfirm" title="即将自动锁定" message="15 分钟无操作，已自动锁定。是否立即解锁继续操作？" confirm-text="立即解锁" @confirm="onConfirmUnlock" @cancel="autoLockConfirm = false" />
-    <AlertActionModal v-if="ackAlertTarget" :alert-id="ackAlertTarget" @close="ackAlertTarget = null" />
-    <TakeoverModal v-if="takeoverTarget" :robot-id="takeoverTarget" @close="takeoverTarget = null" />
-    <DispatchModal v-if="dispatchTarget" :robot-id="dispatchTarget" @close="dispatchTarget = null" />
-    <PreemptModal v-if="preemptTarget" :task-id="preemptTarget" @close="preemptTarget = null" />
-    <TerminateModal v-if="terminateTarget" :task-id="terminateTarget" @close="terminateTarget = null" />
-    <WorkTicketTriggerModal v-if="showWorkTicketTrigger" @close="showWorkTicketTrigger = false" />
-    <RemoteControlModal v-if="showRemoteControl" @close="showRemoteControl = false" />
-    <AuditLogModal v-if="showAuditLog" @close="showAuditLog = false" />
-
-    <!-- 弹窗层（新增：复刻参考页面） -->
-    <EvidenceModal />
-    <AlertDetailModal v-if="dash.showAlertDetailModal.value" />
-    <EnvMetricModal v-if="dash.showEnvMetricModal.value" />
-    <ControlModal v-if="dash.showControlModal.value" />
+    </ScaleContainer>
   </div>
 </template>
 
 <style scoped>
-.app-root { flex: 1; display: flex; flex-direction: column; position: relative; background: #030610; overflow: hidden; }
+/* 分层适配根布局：地图层 absolute 全屏，UI 层在 ScaleContainer 内锁定 1920×1080 */
+.app-root { position: fixed; inset: 0; background: #030610; overflow: hidden; }
 
-.app-main { flex: 1; display: flex; overflow: hidden; position: relative; gap: 0.16rem; padding: 0 0.16rem 0.14rem; }
-.app-center { flex: 1; position: relative; min-width: 0; }
-.app-center :deep(.map-stage) { position: absolute; inset: 0; }
+/* ===== 地图层：全屏铺满视口，不参与 scale，Mapbox/deck.gl 鼠标坐标无偏移 ===== */
+.map-layer { position: absolute; inset: 0; z-index: 1; }
+.map-layer :deep(.map-stage) { position: absolute; inset: 0; }
+.map-layer :deep(.focus-panel) { position: absolute; inset: 0; }
+
+/* ===== UI 层：在 ScaleContainer 内，固定 1920×1080 设计稿尺寸 ===== */
+.hud-stage {
+  width: 1920px; height: 1080px;
+  display: flex; flex-direction: column;
+  position: relative; overflow: hidden;
+}
+
+.app-main { flex: 1; display: flex; overflow: hidden; position: relative; gap: 16px; padding: 0 16px 14px; }
+.app-center { flex: 1; position: relative; min-width: 0; pointer-events: none; }
+/* UI 遮罩层内交互元素恢复 pointer-events */
+.app-center > * { pointer-events: auto; }
 
 /* 全息光栅扫描 */
 .holo-scan {
@@ -449,174 +521,172 @@ function closeApPopup(): void { dash.showApPopup.value = false; dash.state.autop
   background: radial-gradient(ellipse at center, rgba(3,6,16,0) 0%, rgba(3,6,16,0.4) 70%, rgba(3,6,16,0.8) 100%);
 }
 
-/* 地图 Popup 锚点 —— 弹窗在锚点下方，避免顶部超出 */
+/* 地图 Popup 锚点 */
 .map-popup-anchor { position: absolute; z-index: 25; pointer-events: auto; transform: translate(-50%, 0); max-height: 88%; }
 
 /* 设施图例 */
 .map-legend {
-  position: absolute; left: 0.2rem; bottom: 1rem; z-index: 12;
+  position: absolute; left: 20px; bottom: 100px; z-index: 12;
   background: rgba(8, 14, 26, 0.78); border: 1px solid rgba(107, 142, 173, 0.22);
-  border-radius: 0.06rem; padding: 0.1rem 0.12rem; backdrop-filter: blur(0.1rem);
-  display: flex; flex-direction: column; gap: 0.05rem; pointer-events: none;
+  border-radius: 6px; padding: 10px 12px; backdrop-filter: blur(10px);
+  display: flex; flex-direction: column; gap: 5px; pointer-events: none;
 }
-.legend-title { font-size: 0.11rem; color: var(--hud-accent); letter-spacing: 1px; margin-bottom: 0.04rem; }
-.legend-row { display: flex; align-items: center; gap: 0.06rem; font-size: 0.11rem; color: var(--hud-text-dim); }
-.lg-dot { width: 0.08rem; height: 0.08rem; border-radius: 50%; box-shadow: 0 0 0.06rem currentColor; }
+.legend-title { font-size: 11px; color: var(--hud-accent); letter-spacing: 1px; margin-bottom: 4px; }
+.legend-row { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--hud-text-dim); }
+.lg-dot { width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 6px currentColor; }
 
-/* 浮动面板通用 —— flex 布局，三栏并排，地图在中间不被遮挡 */
+/* 浮动面板通用 —— flex 布局，无 overflow 滚动，内容自适应设计稿高度 */
 .panel {
-  display: flex; flex-direction: column; gap: 0.12rem;
-  pointer-events: auto; position: relative;
-  z-index: 20;
-  overflow-y: auto; overflow-x: hidden;
-  padding: 0.14rem;
+  display: flex; flex-direction: column; gap: 12px;
+  pointer-events: auto; position: relative; z-index: 20;
+  padding: 14px;
   border: 1px solid rgba(197, 168, 123, 0.08);
   background: rgba(8, 14, 26, 0.45);
-  backdrop-filter: blur(0.16rem);
-  box-shadow: 0 0.1rem 0.3rem rgba(0, 0, 0, 0.6), 0 0 0.2rem rgba(0, 229, 255, 0.05);
-  border-radius: 0.08rem;
+  backdrop-filter: blur(16px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 20px rgba(0, 229, 255, 0.05);
+  border-radius: 8px;
   flex-shrink: 0;
+  overflow: hidden;
 }
 
-.left-panel { width: 4.2rem; }
-.right-panel { width: 4.6rem; }
+.left-panel { width: 420px; }
+.right-panel { width: 460px; }
 
 /* 任务筛选 */
-.task-filter-section { margin-top: 0.08rem; }
-.task-filter-tabs { display: flex; gap: 0.04rem; margin-bottom: 0.06rem; }
-.tf-tab { padding: 0.03rem 0.08rem; background: rgba(10,16,26,0.7); border: 1px solid rgba(107,142,173,0.22); color: var(--hud-text-dim); border-radius: 0.03rem; cursor: pointer; font-size: 0.1rem; }
+.task-filter-section { margin-top: 8px; }
+.task-filter-tabs { display: flex; gap: 4px; margin-bottom: 6px; }
+.tf-tab { padding: 3px 8px; background: rgba(10,16,26,0.7); border: 1px solid rgba(107,142,173,0.22); color: var(--hud-text-dim); border-radius: 3px; cursor: pointer; font-size: 10px; }
 .tf-tab.active { color: var(--hud-accent); border-color: var(--hud-accent); background: rgba(197,168,123,0.12); }
-.task-pool-list { display: flex; flex-direction: column; gap: 0.04rem; }
-.tp-item { display: flex; align-items: center; gap: 0.06rem; padding: 0.05rem 0.08rem; background: rgba(0,0,0,0.25); border: 1px solid rgba(107,142,173,0.18); border-radius: 0.03rem; cursor: pointer; color: var(--hud-text); font-size: 0.1rem; text-align: left; }
+
+/* 任务池视口 —— 固定高度，自动翻页，无滑轮 */
+.task-pool-viewport { height: 168px; overflow: hidden; position: relative; }
+.task-pool-track { display: flex; flex-direction: column; gap: 4px; transition: transform 0.5s ease; }
+.tp-pagination { display: flex; justify-content: center; gap: 4px; margin-top: 6px; }
+.tp-dot { width: 5px; height: 5px; border-radius: 50%; background: rgba(107,142,173,0.3); transition: all 0.3s; }
+.tp-dot.active { background: var(--hud-accent); width: 12px; border-radius: 3px; }
+
+.tp-item { display: flex; align-items: center; gap: 6px; padding: 5px 8px; background: rgba(0,0,0,0.25); border: 1px solid rgba(107,142,173,0.18); border-radius: 3px; cursor: pointer; color: var(--hud-text); font-size: 10px; text-align: left; height: 38px; }
 .tp-item:hover { border-color: rgba(197,168,123,0.4); }
+.tp-item--locked { cursor: default; }
+.tp-item--locked:hover { border-color: rgba(107,142,173,0.18); background: rgba(0,0,0,0.25); }
+.tp-item.tp-running { border-left: 3px solid #00E5FF; }
+.tp-item.tp-completed { border-left: 3px solid #22C55E; }
+.tp-item.tp-pending { border-left: 3px solid #64748B; }
 .tp-name { flex: 1; }
-.tp-bot { color: var(--hud-text-dim); font-size: 0.09rem; }
-.tp-prog { color: var(--hud-accent); font-family: var(--hud-mono); font-size: 0.09rem; }
+.tp-bot { color: var(--hud-text-dim); font-size: 9px; min-width: 60px; }
+.tp-prog { color: var(--hud-accent); font-family: var(--hud-mono); font-size: 9px; min-width: 32px; text-align: right; }
+.tp-prog-bar { width: 50px; height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden; flex-shrink: 0; }
+.tp-prog-fill { height: 100%; border-radius: 2px; transition: width 0.4s ease; }
+.tp-prog-fill.tp-prog-running { background: linear-gradient(90deg, #00E5FF, #3B82F6); }
+.tp-prog-fill.tp-prog-completed { background: linear-gradient(90deg, #22C55E, #10B981); }
+.tp-prog-fill.tp-prog-pending { background: linear-gradient(90deg, #64748B, #94A3B8); }
 
-/* 告警列表 */
-.alert-ext-section { margin-top: 0.08rem; }
-
-/* 右面板新区块通用 */
-.card { background: rgba(8,14,26,0.45); border: 1px solid rgba(0,229,255,0.12); border-radius: 0.06rem; backdrop-filter: blur(0.12rem); display: flex; flex-direction: column; padding: 0.1rem 0.12rem; gap: 0.06rem; }
-.card-header { display: flex; justify-content: space-between; align-items: center; }
-.rs-tag { font-size: 0.09rem; color: var(--hud-text-dim); }
-.rs-tag strong { color: var(--hud-accent); font-family: var(--hud-mono); }
-.summary-grid { display: grid; gap: 0.06rem; }
-.summary-grid.two-columns { grid-template-columns: repeat(2, 1fr); }
-.summary-grid.four-columns { grid-template-columns: repeat(4, 1fr); }
-.summary-item { background: rgba(8,14,26,0.6); border: 1px solid rgba(0,229,255,0.1); border-radius: 0.04rem; padding: 0.06rem 0.04rem; display: flex; flex-direction: column; gap: 0.02rem; align-items: center; text-align: center; }
-.s-label { font-size: 0.09rem; color: var(--hud-text-dim); }
-.s-val { font-size: 0.14rem; font-family: var(--hud-mono); color: #00E5FF; font-weight: bold; }
-.s-meta { font-size: 0.08rem; color: var(--hud-text-faint); }
-
-/* 安全风险 —— 盾牌视觉 */
-.risk-section .risk-shield {
-  position: relative; display: flex; align-items: center; justify-content: center;
-  height: 1.2rem; margin: 0.04rem 0;
-}
-.risk-shield__icon {
-  position: absolute; width: 1rem; height: 1rem; color: rgba(0, 229, 255, 0.12);
-  filter: drop-shadow(0 0 0.12rem rgba(0, 229, 255, 0.2));
-}
-.risk-shield__center { position: relative; display: flex; flex-direction: column; align-items: center; gap: 0.02rem; z-index: 1; }
-.risk-shield__num { font-size: 0.34rem; font-family: var(--hud-mono); color: #EF4444; font-weight: bold; line-height: 1; text-shadow: 0 0 0.12rem rgba(239, 68, 68, 0.4); }
-.risk-shield__label { font-size: 0.1rem; color: var(--hud-text-dim); letter-spacing: 1px; }
-.risk-breakdown { display: flex; flex-direction: column; gap: 0.04rem; }
-.risk-row { display: flex; align-items: center; gap: 0.08rem; font-size: 0.1rem; color: var(--hud-text-dim); padding: 0.03rem 0.06rem; background: rgba(0,0,0,0.15); border-radius: 0.03rem; }
-.risk-dot { width: 0.06rem; height: 0.06rem; border-radius: 50%; flex-shrink: 0; box-shadow: 0 0 0.06rem currentColor; }
-.risk-val { margin-left: auto; font-family: var(--hud-mono); color: var(--hud-text); font-weight: bold; }
-
-/* 设备运行状态 —— 环形图 */
-.device-status .device-ring { position: relative; width: 1.4rem; height: 1.4rem; margin: 0.04rem auto; }
-.device-ring__svg { width: 100%; height: 100%; transform: rotate(-90deg); }
-.ring-bg { fill: none; stroke: rgba(255, 255, 255, 0.05); stroke-width: 3.2; }
-.ring-ok { fill: none; stroke: #10B981; stroke-width: 3.2; stroke-linecap: round; }
-.ring-warn { fill: none; stroke: #F59E0B; stroke-width: 3.2; stroke-linecap: round; }
-.ring-off { fill: none; stroke: #64748B; stroke-width: 3.2; stroke-linecap: round; }
-.device-ring__center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.02rem; }
-.device-ring__num { font-size: 0.24rem; font-family: var(--hud-mono); color: #00E5FF; font-weight: bold; }
-.device-ring__label { font-size: 0.09rem; color: var(--hud-text-dim); }
-.device-legend { display: flex; flex-direction: column; gap: 0.04rem; }
-.dl-item { display: flex; align-items: center; gap: 0.08rem; font-size: 0.1rem; color: var(--hud-text-dim); padding: 0.03rem 0.06rem; background: rgba(0,0,0,0.15); border-radius: 0.03rem; }
-.dl-dot { width: 0.06rem; height: 0.06rem; border-radius: 50%; }
-.dl-val { margin-left: auto; color: var(--hud-text); font-family: var(--hud-mono); }
-.dl-pct { color: var(--hud-text-faint); font-family: var(--hud-mono); font-size: 0.09rem; min-width: 0.4rem; text-align: right; }
-
-/* 能耗监测 */
-.energy-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.06rem; }
-.energy-item { padding: 0.08rem; background: rgba(8, 14, 26, 0.6); border: 1px solid rgba(0, 229, 255, 0.1); border-radius: 0.04rem; display: flex; flex-direction: column; gap: 0.02rem; }
-.energy-label { font-size: 0.09rem; color: var(--hud-text-dim); }
-.energy-val { font-size: 0.16rem; font-family: var(--hud-mono); color: #00E5FF; font-weight: bold; }
-.energy-val em { font-style: normal; font-size: 0.09rem; color: var(--hud-text-dim); margin-left: 0.02rem; font-weight: 400; }
-.energy-trend { font-size: 0.08rem; font-family: var(--hud-mono); }
-.energy-trend.down { color: #10B981; }
-.energy-trend.up { color: #EF4444; }
-.energy-chart { margin-top: 0.06rem; height: 0.7rem; background: rgba(0,0,0,0.2); border-radius: 0.04rem; padding: 0.06rem; }
-.energy-chart__svg { width: 100%; height: 100%; }
-
-/* 信息播报 */
-.broadcast-section .broadcast-list { display: flex; flex-direction: column; gap: 0.04rem; }
-.broadcast-row { font-size: 0.09rem; color: var(--hud-text-dim); padding: 0.04rem 0.06rem; background: rgba(0,0,0,0.15); border-radius: 0.02rem; border-left: 2px solid rgba(107,142,173,0.3); }
-.broadcast-row.alert { color: #EF4444; border-left-color: #EF4444; }
-.alert-ext-list { display: flex; flex-direction: column; gap: 0.04rem; }
-.ae-item { display: flex; align-items: center; gap: 0.06rem; padding: 0.05rem 0.08rem; background: rgba(0,0,0,0.25); border: 1px solid rgba(107,142,173,0.18); border-radius: 0.03rem; cursor: pointer; font-size: 0.1rem; text-align: left; border-left: 3px solid; }
+/* 告警锚点列表 —— 自动翻页视口 */
+.alert-ext-section { margin-top: 8px; }
+.alert-ext-viewport { height: 180px; overflow: hidden; position: relative; }
+.alert-ext-track { display: flex; flex-direction: column; gap: 4px; transition: transform 0.5s ease; }
+.ae-pagination { display: flex; justify-content: center; gap: 4px; margin-top: 6px; }
+.ae-dot { width: 5px; height: 5px; border-radius: 50%; background: rgba(107,142,173,0.3); transition: all 0.3s; }
+.ae-dot.active { background: #EF4444; width: 12px; border-radius: 3px; }
+.ae-item { display: flex; align-items: center; gap: 6px; padding: 5px 8px; background: rgba(0,0,0,0.25); border: 1px solid rgba(107,142,173,0.18); border-radius: 3px; cursor: pointer; font-size: 10px; text-align: left; border-left: 3px solid; height: 32px; }
 .ae-item.danger { border-left-color: #EF4444; }
 .ae-item.warn { border-left-color: #F59E0B; }
 .ae-item.safe { border-left-color: #22C55E; }
 .ae-item:hover { background: rgba(197,168,123,0.06); }
-.ae-time { font-family: var(--hud-mono); color: var(--hud-text); min-width: 0.4rem; }
-.ae-level { padding: 0.01rem 0.04rem; border-radius: 0.02rem; font-size: 0.09rem; }
+.ae-item--locked { cursor: default; }
+.ae-item--locked:hover { background: rgba(0,0,0,0.25); }
+.ae-time { font-family: var(--hud-mono); color: var(--hud-text); min-width: 40px; }
+.ae-level { padding: 1px 4px; border-radius: 2px; font-size: 9px; }
 .ae-level.danger { background: rgba(239,68,68,0.18); color: #EF4444; }
 .ae-level.warn { background: rgba(245,158,11,0.18); color: #F59E0B; }
 .ae-level.safe { background: rgba(34,197,94,0.18); color: #22C55E; }
 .ae-device { flex: 1; color: var(--hud-text-dim); }
-.ae-state { color: var(--hud-text-dim); font-size: 0.09rem; }
+.ae-state { color: var(--hud-text-dim); font-size: 9px; }
 
 /* 底部任务流转 —— absolute 定位在 app-center 底部，不超出视口 */
 .bottom-timeline {
-  position: absolute; bottom: 0.14rem; left: 50%; transform: translateX(-50%);
-  width: 92%; max-width: 11rem;
+  position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
+  width: 92%; max-width: 1100px;
   background: rgba(8, 14, 26, 0.88);
   border: 1px solid rgba(0, 229, 255, 0.22);
-  border-radius: 0.08rem; padding: 0.14rem 0.28rem;
-  display: flex; flex-direction: column; gap: 0.12rem;
-  backdrop-filter: blur(0.14rem); pointer-events: auto; z-index: 20;
-  box-shadow: 0 -0.08rem 0.24rem rgba(0, 0, 0, 0.5), 0 0 0.2rem rgba(0, 229, 255, 0.06);
+  border-radius: 8px; padding: 14px 28px;
+  display: flex; flex-direction: column; gap: 12px;
+  backdrop-filter: blur(14px); pointer-events: auto; z-index: 20;
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.5), 0 0 20px rgba(0, 229, 255, 0.06);
 }
 .tl-header { display: flex; justify-content: space-between; align-items: center; }
-.tl-title { color: #00E5FF; font-size: 0.13rem; letter-spacing: 0.02rem; font-weight: 500; }
-.tl-controls { display: flex; align-items: center; gap: 0.1rem; }
-.tl-auto-btn { padding: 0.03rem 0.1rem; background: rgba(10,16,26,0.7); border: 1px solid rgba(107,142,173,0.3); color: var(--hud-text-dim); border-radius: 0.03rem; cursor: pointer; font-size: 0.1rem; }
+.tl-title { color: #00E5FF; font-size: 13px; letter-spacing: 0.02rem; font-weight: 500; }
+.tl-controls { display: flex; align-items: center; gap: 10px; }
+.tl-auto-btn { padding: 3px 10px; background: rgba(10,16,26,0.7); border: 1px solid rgba(107,142,173,0.3); color: var(--hud-text-dim); border-radius: 3px; cursor: pointer; font-size: 10px; }
 .tl-auto-btn.active { color: #00E5FF; border-color: #00E5FF; background: rgba(0,229,255,0.12); }
-.tl-sub { font-size: 0.11rem; color: var(--hud-text-faint); font-family: var(--hud-mono); letter-spacing: 1px; }
+.tl-sub { font-size: 11px; color: var(--hud-text-faint); font-family: var(--hud-mono); letter-spacing: 1px; }
 
-.tl-track { position: relative; height: 0.52rem; margin: 0 0.4rem; }
-.f-line { position: absolute; top: 0.12rem; width: 100%; height: 0.02rem; background: rgba(0, 229, 255, 0.15); }
-.f-flow { position: absolute; top: 0.12rem; width: 100%; height: 0.02rem; background: linear-gradient(90deg, transparent, #00E5FF, transparent); background-size: 30% 100%; animation: flowMove 3s linear infinite; }
+.tl-track { position: relative; height: 52px; margin: 0 40px; }
+.f-line { position: absolute; top: 12px; width: 100%; height: 2px; background: rgba(0, 229, 255, 0.15); }
+.f-flow { position: absolute; top: 12px; width: 100%; height: 2px; background: linear-gradient(90deg, transparent, #00E5FF, transparent); background-size: 30% 100%; animation: flowMove 3s linear infinite; }
 @keyframes flowMove { 0% { background-position: -30% 0; } 100% { background-position: 130% 0; } }
-.f-node { position: absolute; top: 0.08rem; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; width: 1rem; cursor: pointer; }
-.f-point { width: 0.1rem; height: 0.1rem; border-radius: 50%; background: var(--hud-text-dim); border: 0.02rem solid #030610; z-index: 2; position: relative; }
-.f-info { margin-top: 0.08rem; display: flex; flex-direction: column; align-items: center; gap: 0.03rem; text-align: center; }
-.f-info .time { font-family: var(--hud-mono); font-size: 0.1rem; color: var(--hud-text-faint); }
-.f-info .name { font-size: 0.11rem; color: var(--hud-text); font-weight: 500; letter-spacing: 0.5px; }
-.f-info .res { font-size: 0.09rem; color: var(--hud-text-dim); }
+.f-node { position: absolute; top: 8px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; width: 100px; cursor: pointer; }
+.f-point { width: 10px; height: 10px; border-radius: 50%; background: var(--hud-text-dim); border: 2px solid #030610; z-index: 2; position: relative; }
+.f-info { margin-top: 8px; display: flex; flex-direction: column; align-items: center; gap: 3px; text-align: center; }
+.f-info .time { font-family: var(--hud-mono); font-size: 10px; color: var(--hud-text-faint); }
+.f-info .name { font-size: 11px; color: var(--hud-text); font-weight: 500; letter-spacing: 0.5px; }
+.f-info .res { font-size: 9px; color: var(--hud-text-dim); }
+.f-info .res-danger { color: var(--hud-danger); font-weight: 600; }
+.f-info .res-warn { color: var(--hud-warn); font-weight: 600; }
 
-.f-node.safe .f-point { background: var(--hud-ok); box-shadow: 0 0 0.08rem var(--hud-ok); }
-.f-node.warn .f-point { background: var(--hud-warn); box-shadow: 0 0 0.08rem var(--hud-warn); }
-.f-node.danger .f-point { background: var(--hud-danger); box-shadow: 0 0 0.08rem var(--hud-danger); }
-.f-node.active .f-point { background: #030610; border-color: #00E5FF; width: 0.14rem; height: 0.14rem; top: -0.02rem; box-shadow: 0 0 0.12rem rgba(0, 229, 255, 0.6); }
-.f-node.active::before { content: ""; position: absolute; top: -0.07rem; width: 0.24rem; height: 0.24rem; border: 1px dashed #00E5FF; border-radius: 50%; animation: spin 4s linear infinite; }
+/* 时间轴异常标记 */
+.node-alert-badge { position: absolute; top: -6px; right: -4px; font-size: 10px; z-index: 3; animation: pulseAlert 2s ease-in-out infinite; }
+@keyframes pulseAlert { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.3); } }
+
+.tl-progress-indicator { position: absolute; top: 12px; height: 2px; width: 6px; background: #00E5FF; border-radius: 1px; z-index: 3; transition: left 0.5s ease; box-shadow: 0 0 8px #00E5FF; }
+
+.tl-footer { display: flex; justify-content: space-between; align-items: center; padding-top: 6px; border-top: 1px solid rgba(107,142,173,0.12); font-size: 10px; }
+.tl-task-state { color: #22C55E; font-weight: 500; }
+.tl-task-progress { color: var(--hud-text-dim); }
+
+.f-node.safe .f-point { background: var(--hud-ok); box-shadow: 0 0 8px var(--hud-ok); }
+.f-node.warn .f-point { background: var(--hud-warn); box-shadow: 0 0 8px var(--hud-warn); }
+.f-node.danger .f-point { background: var(--hud-danger); box-shadow: 0 0 8px var(--hud-danger); }
+.f-node.active .f-point { background: #030610; border-color: #00E5FF; width: 14px; height: 14px; top: -2px; box-shadow: 0 0 12px rgba(0, 229, 255, 0.6); }
+.f-node.active::before { content: ""; position: absolute; top: -7px; width: 24px; height: 24px; border: 1px dashed #00E5FF; border-radius: 50%; animation: spin 4s linear infinite; }
 .f-node.future .f-point { background: transparent; border-color: var(--hud-text-faint); }
 
 @keyframes spin { 100% { transform: rotate(360deg); } }
 
-/* 审计日志入口 */
-.app-root__audit-btn {
-  position: absolute; left: 0.16rem; bottom: 1.5rem;
-  background: rgba(8, 14, 26, 0.78); border: 1px solid var(--hud-border);
-  color: var(--hud-text-dim); padding: 0.05rem 0.14rem; font-size: 0.11rem; cursor: pointer;
-  border-radius: 999px; z-index: 6; letter-spacing: 1px;
-  backdrop-filter: blur(0.08rem); transition: all 0.2s ease;
+/* 锁定态点击反馈 toast */
+.lock-toast {
+  position: fixed; top: 80px; left: 50%; transform: translateX(-50%);
+  z-index: 100; padding: 10px 20px;
+  background: rgba(245, 158, 11, 0.92); color: #fff;
+  border: 1px solid rgba(245, 158, 11, 0.6); border-radius: 4px;
+  font-size: 12px; letter-spacing: 0.5px;
+  box-shadow: 0 6px 20px rgba(245, 158, 11, 0.35);
+  animation: toastIn 0.25s ease;
 }
-.app-root__audit-btn:hover { border-color: rgba(0, 229, 255, 0.5); color: #00E5FF; box-shadow: 0 0 0.1rem rgba(0, 229, 255, 0.15); }
+@keyframes toastIn { from { opacity: 0; transform: translate(-50%, -10px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+/* 全局快捷键提示角标（演示便利性） */
+.kbd-hint {
+  position: fixed; bottom: 12px; right: 16px; z-index: 50;
+  display: flex; align-items: center; gap: 4px;
+  padding: 4px 10px; background: rgba(8, 14, 26, 0.6);
+  border: 1px solid rgba(107, 142, 173, 0.18); border-radius: 4px;
+  backdrop-filter: blur(8px); pointer-events: none;
+}
+.kbd-key { font-family: var(--hud-mono); font-size: 10px; color: #00E5FF; background: rgba(0, 229, 255, 0.1); border: 1px solid rgba(0, 229, 255, 0.25); border-radius: 3px; padding: 1px 5px; }
+.kbd-desc { font-size: 10px; color: var(--hud-text-faint); letter-spacing: 0.5px; margin-right: 6px; }
+
+/* S20: 任务执行反馈弹窗 —— px 单位，与 ScaleContainer 设计稿一致 */
+.feedback-mask { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 9999; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+.feedback-modal { width: 400px; background: rgba(10,16,26,0.95); border: 1px solid rgba(197,168,123,0.3); border-radius: 8px; padding: 20px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 20px 50px rgba(0,0,0,0.6); }
+.fb-title { font-size: 14px; color: var(--hud-accent); letter-spacing: 1px; }
+.fb-task-name { font-size: 11px; color: var(--hud-text-dim); }
+.fb-history { max-height: 160px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+.fb-entry { display: flex; gap: 8px; padding: 4px 6px; background: rgba(0,0,0,0.25); border-radius: 3px; font-size: 10px; }
+.fb-entry-time { font-family: var(--hud-mono); color: var(--hud-text-faint); min-width: 60px; }
+.fb-entry-text { color: var(--hud-text); }
+.fb-input-row { display: flex; flex-direction: column; }
+.fb-input { background: rgba(5,8,14,0.7); border: 1px solid rgba(107,142,173,0.18); color: var(--hud-text); padding: 6px 10px; border-radius: 4px; font-size: 11px; resize: none; font-family: inherit; }
+.fb-input:focus { outline: none; border-color: rgba(197,168,123,0.5); }
+.fb-actions { display: flex; gap: 8px; justify-content: flex-end; }
 </style>

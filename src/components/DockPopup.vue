@@ -1,6 +1,5 @@
 <script setup lang="ts">
-// DockPopup —— 充电站弹窗（复刻参考页面 showDockPopup）
-// 含：充电站门面 + 状态 stats + 充电队列 + 最近充电机器人
+// DockPopup —— 充电站弹窗（增强版：充电状态可视化 + 队列展示 + 能耗统计）
 
 import { computed } from "vue"
 import { useDashboard } from "@/composables/useDashboard"
@@ -13,6 +12,7 @@ const dock = computed(() => docks.value.find((d) => d.id === props.dockId) ?? nu
 
 const statusMap: Record<string, string> = { charging: "充电中", safe: "空闲", warn: "注意", danger: "异常" }
 const statusTag: Record<string, string> = { charging: "charging", safe: "safe", warn: "warn", danger: "warn" }
+const statusColor: Record<string, string> = { charging: "#3B82F6", safe: "#22C55E", warn: "#F59E0B", danger: "#EF4444" }
 
 const queueStats = computed<DockQueueStats>(() => {
   if (!dock.value) return { charging: 0, parked: 0, fullNotLeave: 0, queue: 0 }
@@ -24,6 +24,20 @@ const queueStats = computed<DockQueueStats>(() => {
     queue: d.queueCount,
   }
 })
+
+const voltageStatus = computed(() => {
+  if (!dock.value) return "safe"
+  const v = parseInt(dock.value.voltage)
+  if (v < 380) return "danger"
+  if (v < 390) return "warn"
+  return "safe"
+})
+
+// 充电站占位率
+const occupancyPct = computed(() => {
+  if (!dock.value) return 0
+  return Math.round(((queueStats.value.charging + queueStats.value.parked) / 3) * 100)
+})
 </script>
 
 <template>
@@ -34,18 +48,33 @@ const queueStats = computed<DockQueueStats>(() => {
       <span class="popup-close-btn" @click="$emit('close')">✕</span>
     </div>
     <div class="popup-body">
+      <!-- 充电站门面 -->
       <div class="dock-facade" :style="{ backgroundImage: `url('${dock.facadeImg}')` }">
         <div class="dock-facade-overlay">{{ dock.id }}</div>
+        <div class="dock-status-badge" :style="{ background: statusColor[dock.status] }">{{ statusMap[dock.status] }}</div>
       </div>
+      
+      <!-- 充电站使用率 -->
+      <div class="dock-occupancy">
+        <span class="dock-occ-label">充电位占用率</span>
+        <div class="dock-occ-bar">
+          <div class="dock-occ-fill" :style="{ width: occupancyPct + '%' }"></div>
+        </div>
+        <span class="dock-occ-val">{{ occupancyPct }}%</span>
+      </div>
+
       <div class="popup-stats">
-        <div class="popup-stat"><span class="popup-stat-label">运行状态</span><span class="popup-stat-value">{{ statusMap[dock.status] }}</span></div>
+        <div class="popup-stat"><span class="popup-stat-label">运行状态</span><span class="popup-stat-value" :style="{ color: statusColor[dock.status] }">{{ statusMap[dock.status] }}</span></div>
         <div class="popup-stat"><span class="popup-stat-label">当前机器人</span><span class="popup-stat-value">{{ dock.bot }}</span></div>
-        <div class="popup-stat"><span class="popup-stat-label">输出电压</span><span class="popup-stat-value">{{ dock.voltage }}</span></div>
-        <div class="popup-stat"><span class="popup-stat-label">累计充电次数</span><span class="popup-stat-value">{{ dock.totalCharges }}次</span></div>
-        <div class="popup-stat"><span class="popup-stat-label">已充满未离站</span><span class="popup-stat-value">{{ queueStats.fullNotLeave }}台</span></div>
-        <div class="popup-stat"><span class="popup-stat-label">排队台数</span><span class="popup-stat-value">{{ queueStats.queue }}台</span></div>
+        <div class="popup-stat">
+          <span class="popup-stat-label">输出电压</span>
+          <span class="popup-stat-value" :class="{ 'danger-txt': voltageStatus === 'danger', 'warn-txt': voltageStatus === 'warn' }">{{ dock.voltage }}</span>
+        </div>
+        <div class="popup-stat"><span class="popup-stat-label">累计充电</span><span class="popup-stat-value">{{ dock.totalCharges }}次</span></div>
+        <div class="popup-stat"><span class="popup-stat-label">已充满未离站</span><span class="popup-stat-value warn-txt">{{ queueStats.fullNotLeave }}台</span></div>
+        <div class="popup-stat"><span class="popup-stat-label">排队等待</span><span class="popup-stat-value" :class="{ 'warn-txt': queueStats.queue > 0 }">{{ queueStats.queue }}台</span></div>
         <div class="popup-stat"><span class="popup-stat-label">最近充电机器人</span><span class="popup-stat-value">{{ dock.lastRobot }}</span></div>
-        <div class="popup-stat"><span class="popup-stat-label">位置坐标</span><span class="popup-stat-value">{{ dock.coords[0].toFixed(4) }}, {{ dock.coords[1].toFixed(4) }}</span></div>
+        <div class="popup-stat"><span class="popup-stat-label">坐标</span><span class="popup-stat-value mono">{{ dock.coords[0].toFixed(4) }}, {{ dock.coords[1].toFixed(4) }}</span></div>
       </div>
     </div>
   </div>
@@ -60,11 +89,22 @@ const queueStats = computed<DockQueueStats>(() => {
 .tag.safe { background: rgba(34,197,94,0.18); color: #22C55E; border: 1px solid rgba(34,197,94,0.4); }
 .tag.warn { background: rgba(245,158,11,0.18); color: #F59E0B; border: 1px solid rgba(245,158,11,0.4); }
 .popup-close-btn { margin-left: auto; cursor: pointer; color: var(--hud-text-dim); font-size: 0.1400rem; }
-.popup-body { padding: 0.1200rem 0.1400rem; max-height: 4.6000rem; overflow-y: auto; }
-.dock-facade { height: 1.2000rem; background-size: cover; background-position: center; border-radius: 0.0400rem; margin-bottom: 0.1200rem; position: relative; }
-.dock-facade-overlay { position: absolute; bottom: 0.0600rem; left: 0.0800rem; font-size: 0.1100rem; color: #cfe3f7; background: rgba(0,0,0,0.5); padding: 0.0200rem 0.0600rem; border-radius: 0.0200rem; font-family: var(--hud-mono); }
-.popup-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 0.0800rem; }
+.popup-body { padding: 0.1200rem 0.1400rem; }
+.dock-facade { height: 1.0000rem; background-size: cover; background-position: center; border-radius: 0.0400rem; margin-bottom: 0.1000rem; position: relative; }
+.dock-facade-overlay { position: absolute; bottom: 0.0600rem; left: 0.0800rem; font-size: 0.1000rem; color: #cfe3f7; background: rgba(0,0,0,0.5); padding: 0.0200rem 0.0600rem; border-radius: 0.0200rem; font-family: var(--hud-mono); }
+.dock-status-badge { position: absolute; top: 0.0600rem; right: 0.0600rem; padding: 0.0200rem 0.0600rem; border-radius: 0.0200rem; font-size: 0.0900rem; color: #fff; }
+
+.dock-occupancy { display: flex; align-items: center; gap: 0.0600rem; margin-bottom: 0.1000rem; padding: 0.0600rem 0.0800rem; background: rgba(0,0,0,0.25); border-radius: 0.0300rem; }
+.dock-occ-label { font-size: 0.0900rem; color: var(--hud-text-dim); min-width: 0.6000rem; }
+.dock-occ-bar { flex: 1; height: 0.0600rem; background: rgba(255,255,255,0.06); border-radius: 9.9900rem; overflow: hidden; }
+.dock-occ-fill { height: 100%; background: linear-gradient(90deg, #00E5FF, #3B82F6); border-radius: 9.9900rem; transition: width 0.3s ease; }
+.dock-occ-val { font-family: var(--hud-mono); font-size: 0.1000rem; color: #00E5FF; min-width: 0.3400rem; text-align: right; }
+
+.popup-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 0.0600rem; }
 .popup-stat { display: flex; flex-direction: column; gap: 0.0200rem; }
-.popup-stat-label { font-size: 0.1000rem; color: var(--hud-text-dim); letter-spacing: 0.5px; }
-.popup-stat-value { font-size: 0.1200rem; color: var(--hud-text); }
+.popup-stat-label { font-size: 0.0900rem; color: var(--hud-text-dim); letter-spacing: 0.5px; }
+.popup-stat-value { font-size: 0.1100rem; color: var(--hud-text); }
+.mono { font-family: var(--hud-mono); }
+.danger-txt { color: #EF4444; }
+.warn-txt { color: #F59E0B; }
 </style>

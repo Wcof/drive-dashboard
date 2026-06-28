@@ -1,12 +1,16 @@
 <script setup lang="ts">
 // AlertDetailModal —— 告警详情弹窗（复刻参考页面 alert-modal）
 // 含：告警描述 + 证据影像 tab（可见光/热红外/异状片段）+ 对比差异 + 处置操作（确认/清除/撤销）
+// 闭环：看证据 → 远控复核 → 下单处置，处置操作写入 audit-log 留痕
 
 import { computed, ref } from "vue"
 import { useDashboard } from "@/composables/useDashboard"
+import { addAuditLog } from "@/composables/useAuditLog"
 import { makeMockImg, evidenceFilter } from "@/utils/mockImage"
+import { useLockState } from "@/composables/useLockState"
 
-const { currentAlert, openEvidenceModal, setEvidenceMode, confirmAlert, clearAlert, undoAlert, closeAlertDetailModal, state } = useDashboard()
+const { currentAlert, openEvidenceModal, setEvidenceMode, confirmAlert, clearAlert, undoAlert, closeAlertDetailModal, state, openControlModal, robotsExt } = useDashboard()
+const { isLocked } = useLockState()
 
 const evMode = ref<"normal" | "thermal" | "video">("normal")
 const filterStyle = computed(() => evidenceFilter(evMode.value))
@@ -16,15 +20,21 @@ function setMode(m: "normal" | "thermal" | "video"): void {
   setEvidenceMode(m)
 }
 
-const taskName = computed(() => {
-  if (!currentAlert.value) return ""
-  return currentAlert.value.taskId
-})
+const taskName = computed(() => currentAlert.value?.taskId ?? "")
 
+// 通过 taskId 找机器人 ID（闭环联动：处置告警可切入对应机器人远控）
 const botId = computed(() => {
   if (!currentAlert.value) return ""
-  // 通过 taskId 找 bot
-  return currentAlert.value.taskId
+  const tid = currentAlert.value.taskId
+  const r = robotsExt.value.find((x) => x.taskId === tid)
+  return r?.id ?? state.currentRobotId ?? "—"
+})
+// 获取机器人名称
+const botName = computed(() => {
+  const id = botId.value
+  if (!id || id === "—") return "未关联"
+  const r = robotsExt.value.find((x) => x.id === id)
+  return r?.task ? `${id} (${r.label})` : id
 })
 
 const lvlLabel = computed(() => {
@@ -44,7 +54,37 @@ const alertThumbs = computed(() => {
 
 const hasUndo = computed(() => !!state.lastAlertAction)
 
+// 处置闭环：确认发单 + 写审计留痕
+function onConfirm(): void {
+  confirmAlert()
+  if (currentAlert.value) {
+    addAuditLog({ action: "ack_alert", operator: "current", targetId: currentAlert.value.id, targetType: "alert", reason: "确认发单处置" })
+  }
+}
 
+// 处置闭环：现场已查无异常（消警）+ 写审计留痕
+function onClear(): void {
+  clearAlert()
+  if (currentAlert.value) {
+    addAuditLog({ action: "ack_alert", operator: "current", targetId: currentAlert.value.id, targetType: "alert", reason: "现场已查无异常（消警）" })
+  }
+}
+
+// 处置闭环：撤销上次操作 + 写审计留痕
+function onUndo(): void {
+  undoAlert()
+  if (state.lastAlertAction) {
+    addAuditLog({ action: "ack_alert", operator: "current", targetId: state.lastAlertAction.alertId, targetType: "alert", reason: "撤销上次处置操作" })
+  }
+}
+
+// 远控复核：切入对应机器人控制台（闭环关键步骤）
+function onRemoteReview(): void {
+  if (botId.value && botId.value !== "—") {
+    state.currentRobotId = botId.value
+    openControlModal(botId.value)
+  }
+}
 </script>
 
 <template>
@@ -63,7 +103,7 @@ const hasUndo = computed(() => !!state.lastAlertAction)
           </div>
           <div class="a-desc">
             <strong><span class="danger-txt">[{{ currentAlert.defect.split('(')[0] }}]</span> 任务:</strong> {{ taskName }}<br>
-            <strong>机体:</strong> {{ botId }} | <strong>点位:</strong> {{ currentAlert.loc }} ({{ currentAlert.device }})<br>
+            <strong>机体:</strong> {{ botName }} | <strong>点位:</strong> {{ currentAlert.loc }} ({{ currentAlert.device }})<br>
             <strong :style="{ color: `var(--hud-${currentAlert.level === 'danger' ? 'danger' : currentAlert.level === 'warn' ? 'warn' : 'ok'})` }">缺陷详情:</strong> {{ currentAlert.defect }}<br>
             <div class="a-compare">
               上次({{ currentAlert.lastTime }}): {{ currentAlert.lastResult }}
@@ -89,9 +129,11 @@ const hasUndo = computed(() => !!state.lastAlertAction)
         </div>
 
         <div class="alert-actions">
-          <button v-if="!hasUndo" class="alert-btn confirm" @click="confirmAlert">确认发单处置</button>
-          <button v-if="!hasUndo" class="alert-btn clear" @click="clearAlert">现场已查无异常</button>
-          <button v-if="hasUndo" class="alert-btn undo" @click="undoAlert">撤销上次操作</button>
+          <button v-if="!hasUndo && !isLocked" class="alert-btn review" @click="onRemoteReview">远控复核</button>
+          <button v-if="!hasUndo && !isLocked" class="alert-btn confirm" @click="onConfirm">确认发单处置</button>
+          <button v-if="!hasUndo && !isLocked" class="alert-btn clear" @click="onClear">现场已查无异常</button>
+          <button v-if="hasUndo && !isLocked" class="alert-btn undo" @click="onUndo">撤销上次操作</button>
+          <div v-if="isLocked && !hasUndo" class="alert-btn-lockhint">🔒 锁定态：仅查看证据，解锁后可处置</div>
         </div>
       </div>
     </div>
@@ -100,7 +142,7 @@ const hasUndo = computed(() => !!state.lastAlertAction)
 
 <style scoped>
 .alert-modal-mask { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 9999; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(0.1000rem); }
-.alert-modal { width: 90%; max-width: 8.0000rem; max-height: 80vh; background: rgba(10,16,26,0.92); border: 1px solid rgba(197,168,123,0.4); border-radius: 0.0800rem; padding: 0.2400rem; overflow-y: auto; position: relative; }
+.alert-modal { width: 90%; max-width: 8.0000rem; background: rgba(10,16,26,0.92); border: 1px solid rgba(197,168,123,0.4); border-radius: 0.0800rem; padding: 0.2400rem; position: relative; }
 .alert-modal-close { position: absolute; top: 0.1600rem; right: 0.2000rem; font-size: 0.2800rem; color: #fff; cursor: pointer; }
 .alert-modal-header { margin-bottom: 0.2000rem; padding-bottom: 0.1600rem; border-bottom: 1px solid rgba(107,142,173,0.22); }
 .alert-modal-title { margin: 0; font-size: 0.1800rem; color: var(--hud-accent); letter-spacing: 0.0200rem; }
@@ -142,4 +184,7 @@ const hasUndo = computed(() => !!state.lastAlertAction)
 .alert-btn.clear:hover { background: rgba(34,197,94,0.25); }
 .alert-btn.undo { background: rgba(107,142,173,0.15); border-color: rgba(107,142,173,0.4); color: #6B8EAD; }
 .alert-btn.undo:hover { background: rgba(107,142,173,0.25); }
+.alert-btn.review { background: rgba(0,229,255,0.15); border-color: rgba(0,229,255,0.4); color: #00E5FF; }
+.alert-btn.review:hover { background: rgba(0,229,255,0.25); }
+.alert-btn-lockhint { flex: 1; padding: 0.1000rem; text-align: center; font-size: 0.1200rem; color: var(--hud-warn); background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.3); border-radius: 0.0400rem; letter-spacing: 1px; }
 </style>

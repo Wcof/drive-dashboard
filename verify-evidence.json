@@ -1,0 +1,333 @@
+{
+  "pass": 52,
+  "fail": 0,
+  "items": [
+    {
+      "name": "页面加载无 pageerror",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "无业务 console.error",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "DOM: appRoot",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "DOM: mapLayer",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "DOM: hudStage",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "DOM: topBar",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "DOM: leftPanel",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "DOM: rightPanel",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "DOM: appCenter",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "DOM: bottomTimeline",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "DOM: taskPool",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "DOM: alertExtList",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "DOM: expiryPanel",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "DOM: mapLegend",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "DOM: kbdHint",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "DOM: tlNodes",
+      "pass": true,
+      "detail": "5"
+    },
+    {
+      "name": "DOM: tpItems",
+      "pass": true,
+      "detail": "9"
+    },
+    {
+      "name": "DOM: aeItems",
+      "pass": true,
+      "detail": "8"
+    },
+    {
+      "name": "DOM: tpPag",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "DOM: aePag",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "body overflow:hidden",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "html overflow:hidden",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "显示态无溢出滚动条",
+      "pass": true,
+      "detail": "[]"
+    },
+    {
+      "name": "入口: btnN",
+      "pass": true,
+      "detail": "36"
+    },
+    {
+      "name": "入口: lock",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "入口: audit",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "入口: layer",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "入口: autoplay",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "入口: taskFilter",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "入口: dispatch",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "任务池自动轮播翻页",
+      "pass": true,
+      "detail": "1→2"
+    },
+    {
+      "name": "告警锚点自动轮播翻页",
+      "pass": true,
+      "detail": "0→1"
+    },
+    {
+      "name": "告警详情弹窗弹出",
+      "pass": true,
+      "detail": "巡检告警详情 · alert-003"
+    },
+    {
+      "name": "告警弹窗含证据查看 tab",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "告警弹窗含\"远控复核\"按钮",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "告警弹窗含\"下单处置\"按钮",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "审计日志弹窗弹出",
+      "pass": true,
+      "detail": "审计日志\n共 2 条"
+    },
+    {
+      "name": "审计日志有记录",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "任务池点击触发反馈弹窗",
+      "pass": true,
+      "detail": "📋 任务执行反馈"
+    },
+    {
+      "name": "任务池点击联动机器人弹窗",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "时间轴有节点",
+      "pass": true,
+      "detail": "5 个"
+    },
+    {
+      "name": "时间轴异常节点可点击",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "图层控制面板弹出",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "锁定态已生效(按钮含解锁)",
+      "pass": true,
+      "detail": "🔓 解锁"
+    },
+    {
+      "name": "锁定态无残留弹窗",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "锁定态告警点击不弹窗",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "锁定态告警点击显示 toast",
+      "pass": true,
+      "detail": "🔒 锁定态：已聚焦告警位置，解锁后可查看详情并处置"
+    },
+    {
+      "name": "分辨率适配 1080P (1920x1080)",
+      "pass": true,
+      "detail": "UI:1920x1080 地图:1920x1080"
+    },
+    {
+      "name": "分辨率适配 2K (2560x1440)",
+      "pass": true,
+      "detail": "UI:1920x1080 地图:2560x1440"
+    },
+    {
+      "name": "分辨率适配 4K (3840x2160)",
+      "pass": true,
+      "detail": "UI:1920x1080 地图:3840x2160"
+    },
+    {
+      "name": "分辨率适配 小屏 (1366x768)",
+      "pass": true,
+      "detail": "UI:1920x1080 地图:1366x768"
+    },
+    {
+      "name": "Space 双向切换轮播",
+      "pass": true,
+      "detail": "⏸ 暂停轮播→▶ 自动轮播→⏸ 暂停轮播"
+    }
+  ],
+  "startedAt": "2026-06-28T18:43:21.782Z",
+  "alertModalButtons": [
+    "可见光追踪",
+    "热红外追踪",
+    "巡检异状片段",
+    "远控复核",
+    "确认发单处置",
+    "现场已查无异常"
+  ],
+  "resolutions": [
+    {
+      "w": 1920,
+      "h": 1080,
+      "n": "1080P",
+      "hv": true,
+      "hs": "1920x1080",
+      "mf": true,
+      "ms": "1920x1080"
+    },
+    {
+      "w": 2560,
+      "h": 1440,
+      "n": "2K",
+      "hv": true,
+      "hs": "1920x1080",
+      "mf": true,
+      "ms": "2560x1440"
+    },
+    {
+      "w": 3840,
+      "h": 2160,
+      "n": "4K",
+      "hv": true,
+      "hs": "1920x1080",
+      "mf": true,
+      "ms": "3840x2160"
+    },
+    {
+      "w": 1366,
+      "h": 768,
+      "n": "小屏",
+      "hv": true,
+      "hs": "1920x1080",
+      "mf": true,
+      "ms": "1366x768"
+    }
+  ],
+  "spaceToggle": {
+    "s1": {
+      "txt": "⏸ 暂停轮播",
+      "playing": true
+    },
+    "s2": {
+      "txt": "▶ 自动轮播",
+      "playing": false
+    },
+    "s3": {
+      "txt": "⏸ 暂停轮播",
+      "playing": true
+    }
+  },
+  "endedAt": "2026-06-28T18:44:12.298Z",
+  "summary": {
+    "pass": 52,
+    "fail": 0,
+    "total": 52
+  }
+}

@@ -11,6 +11,7 @@ import type {
   EnvSummaryCard,
   FacilityPoint,
   FacilitySummaryCard,
+  InspectionExpiryItem,
   PlanSummaryCard,
   RiskBreakdownItem,
   RobotExt,
@@ -207,7 +208,7 @@ export const seedTasksExt: Record<string, TaskExt> = {
       nodes: [
         { time: "09:50", name: "门禁", res: "✓", status: "safe", pos: "15%", coords: siteCoord(0.35, 0.48) },
         { time: "10:15", name: "配电", res: "✓", status: "safe", pos: "35%", coords: siteCoord(0.53, 0.48) },
-        { time: "10:32", name: "机组", res: "✖ 异响", status: "danger", pop: true, pos: "55%", coords: siteCoord(0.72, 0.57), alertId: "alert-ext-001" },
+        { time: "10:32", name: "机组", res: "✖ 异响", status: "danger", pop: true, pos: "55%", coords: siteCoord(0.72, 0.57), alertId: "alert-003" },
         { time: "前往中(ETA 2m)", name: "变压器", res: "当前目标", status: "active", pos: "75%", coords: siteCoord(0.84, 0.63) },
         { time: "待定", name: "冷凝塔", res: "", status: "future", pos: "95%", coords: siteCoord(0.84, 0.68) },
       ],
@@ -242,7 +243,7 @@ export const seedTasksExt: Record<string, TaskExt> = {
       title: "当前执行：主干道例行安防护卫 (robot-east-1)",
       nodes: [
         { time: "09:00", name: "入口", res: "✓", status: "safe", pos: "25%", coords: siteCoord(0.21, 0.63) },
-        { time: "09:15", name: "换热阀", res: "高温警示", status: "warn", pos: "55%", coords: siteCoord(0.57, 0.56), alertId: "alert-ext-002" },
+        { time: "09:15", name: "换热阀", res: "高温警示", status: "warn", pos: "55%", coords: siteCoord(0.57, 0.56), alertId: "alert-005" },
         { time: "巡航扫描", name: "出入口", res: "前往", status: "active", pos: "85%", coords: siteCoord(0.33, 0.45) },
       ],
     },
@@ -252,7 +253,7 @@ export const seedTasksExt: Record<string, TaskExt> = {
 // 告警扩展（参考页面 DATA.alerts）
 export const seedAlertsExt: AlertExt[] = [
   {
-    id: "alert-ext-001",
+    id: "alert-003",
     bgImg: makeMockImg("Alert A-01", "#3a1212", "#5d1d1d"),
     time: "10:32",
     level: "danger",
@@ -271,7 +272,7 @@ export const seedAlertsExt: AlertExt[] = [
     comp: "突发异常",
   },
   {
-    id: "alert-ext-002",
+    id: "alert-005",
     bgImg: makeMockImg("Alert A-02", "#3a2a14", "#594321"),
     time: "09:15",
     level: "warn",
@@ -307,6 +308,101 @@ export const seedAlertsExt: AlertExt[] = [
     lastTime: "2天前",
     lastResult: "正常",
     comp: "未见异常",
+  },
+  {
+    id: "alert-ext-004",
+    bgImg: makeMockImg("Alert A-04", "#1a2b14", "#2f4a1f"),
+    time: "13:08",
+    level: "warn",
+    state: "未确认",
+    device: "C区反应釜R-201",
+    loc: "北侧平台",
+    defect: "液位计读数漂移",
+    taskId: "task-b-security",
+    coords: siteCoord(0.45, 0.48),
+    aimSafe: true,
+    targetLabel: "磁翻板液位计 [标框]",
+    eviResult: "分析: 读数偏差 +8%",
+    eviClass: "warn-txt",
+    lastTime: "昨日",
+    lastResult: "正常",
+    comp: "渐变漂移",
+  },
+  {
+    id: "alert-ext-005",
+    bgImg: makeMockImg("Alert A-05", "#331f1f", "#5c2d2d"),
+    time: "14:22",
+    level: "danger",
+    state: "未确认",
+    device: "储罐区T-305",
+    loc: "罐顶呼吸阀",
+    defect: "红外测温异常 92℃",
+    taskId: "task-e-power",
+    coords: siteCoord(0.68, 0.42),
+    aimSafe: true,
+    targetLabel: "呼吸阀法兰 [热成像]",
+    eviResult: "分析: 温度超阈 22%",
+    eviClass: "danger-txt",
+    lastTime: "3小时前",
+    lastResult: "70℃",
+    comp: "急升(+22℃)",
+  },
+  {
+    id: "alert-ext-006",
+    bgImg: makeMockImg("Alert A-06", "#1f2a33", "#2d4258"),
+    time: "15:05",
+    level: "warn",
+    state: "待复核",
+    device: "D区配电柜",
+    loc: "低压开关室",
+    defect: "柜门未闭合",
+    taskId: "task-a-morning",
+    coords: siteCoord(0.38, 0.62),
+    aimSafe: true,
+    targetLabel: "柜门状态 [开闭识别]",
+    eviResult: "分析: 门禁异常",
+    eviClass: "warn-txt",
+    lastTime: "今晨",
+    lastResult: "已闭合",
+    comp: "状态突变",
+  },
+  {
+    id: "alert-ext-007",
+    bgImg: makeMockImg("Alert A-07", "#3a2a14", "#594321"),
+    time: "15:48",
+    level: "safe",
+    state: "已处置",
+    device: "A区蒸汽阀",
+    loc: "主管廊中段",
+    defect: "法兰微漏(已紧固)",
+    taskId: "task-b-security",
+    coords: siteCoord(0.52, 0.55),
+    aimSafe: true,
+    targetLabel: "法兰密封 [已处理]",
+    eviResult: "分析: 复测无泄漏",
+    eviClass: "dim",
+    lastTime: "1小时前",
+    lastResult: "微量泄漏",
+    comp: "已消除",
+  },
+  {
+    id: "alert-ext-008",
+    bgImg: makeMockImg("Alert A-08", "#2a1a33", "#4d2d5c"),
+    time: "16:12",
+    level: "warn",
+    state: "未确认",
+    device: "E区压缩机K-402",
+    loc: "西侧平台",
+    defect: "振动速度超限 4.5mm/s",
+    taskId: "task-c-night",
+    coords: siteCoord(0.71, 0.61),
+    aimSafe: true,
+    targetLabel: "振动传感器 [读数]",
+    eviResult: "分析: 振速超阈 12%",
+    eviClass: "warn-txt",
+    lastTime: "30分钟前",
+    lastResult: "正常",
+    comp: "突发振动",
   },
 ]
 
@@ -355,14 +451,14 @@ export const seedFacilitySummary: FacilitySummaryCard[] = [
   { label: "门禁", total: 8, online: 8, offline: 0, tone: "safe" },
 ]
 
-// 环境检测概览卡
+// 环境检测概览卡（含采样时间与数据新鲜度）
 export const seedEnvSummary: EnvSummaryCard[] = [
-  { icon: "O₂", label: "氧气浓度", value: "20.5%", status: "safe" },
-  { icon: "CH₄", label: "甲烷泄漏", value: "1%LEL", status: "safe" },
-  { icon: "CO", label: "一氧化碳", value: "0ppm", status: "safe" },
-  { icon: "H₂S", label: "硫化氢", value: "1ppm", status: "safe" },
-  { icon: "VOC", label: "VOC有机物", value: "0.2ppm", status: "safe" },
-  { icon: "🔊", label: "噪声等级", value: "85dB", status: "warn" },
+  { key: "O2", icon: "O₂", label: "氧气浓度", value: "20.5%", status: "safe", samplingTime: "10:32:15", freshness: "realtime" },
+  { key: "CH4", icon: "CH₄", label: "甲烷泄漏", value: "1%LEL", status: "safe", samplingTime: "10:32:15", freshness: "realtime" },
+  { key: "CO", icon: "CO", label: "一氧化碳", value: "0ppm", status: "safe", samplingTime: "10:30:22", freshness: "realtime" },
+  { key: "H2S", icon: "H₂S", label: "硫化氢", value: "1ppm", status: "safe", samplingTime: "10:28:10", freshness: "recent" },
+  { key: "TVOC", icon: "VOC", label: "VOC有机物", value: "0.2ppm", status: "safe", samplingTime: "10:28:10", freshness: "recent" },
+  { key: "Noise", icon: "🔊", label: "噪声等级", value: "85dB", status: "warn", samplingTime: "10:32:15", freshness: "realtime" },
 ]
 
 // 巡检总览卡
@@ -373,12 +469,53 @@ export const seedPlanSummary: PlanSummaryCard[] = [
   { label: "异常", value: 1, tone: "danger" },
 ]
 
-// 安全风险细分
+// 安全风险细分（含监测失效类型 + 趋势）
 export const seedRiskBreakdown: RiskBreakdownItem[] = [
-  { category: "infrared", label: "巡检点", value: 1 },
-  { category: "device", label: "设施设备", value: 2 },
-  { category: "gas", label: "气体异常", value: 0 },
-  { category: "safeBehavior", label: "安全行为", value: 0 },
+  { category: "infrared", label: "巡检点异常", value: 1, trend: "down" },
+  { category: "device", label: "设施设备异常", value: 2, trend: "up" },
+  { category: "gas", label: "气体异常", value: 0, trend: "flat" },
+  { category: "safeBehavior", label: "安全行为异常", value: 1, trend: "up" },
+  { category: "monitorFailure", label: "监测失效", value: 1, trend: "down" },
+]
+
+// 强检设备到期（30/15/5/0 天梯度，模拟截止日期）
+export const seedInspectionExpiry: InspectionExpiryItem[] = [
+  {
+    id: "exp-001", name: "A区-1#干粉灭火器", location: "A区主厂房", deadline: "2026-07-28",
+    daysRemaining: 30, category: "灭火器", lastInspectionDate: "2025-07-28", inspectionCycle: 12,
+    responsiblePerson: "王运维", riskLevel: "低", status: "临近到期",
+    measures: ["工程：定期检查压力表", "培训：操作工每月目检", "管理：纳入到期台账"],
+  },
+  {
+    id: "exp-002", name: "B区-2#可燃气体感应器", location: "B区换热站", deadline: "2026-07-13",
+    daysRemaining: 15, category: "气体感应器", lastInspectionDate: "2025-07-13", inspectionCycle: 12,
+    responsiblePerson: "李安全", riskLevel: "中", status: "临近到期",
+    measures: ["工程：标定灵敏度", "培训：报警处置流程", "技术：接入机器人巡检"],
+  },
+  {
+    id: "exp-003", name: "C区-1#安全阀", location: "C区储罐区", deadline: "2026-07-03",
+    daysRemaining: 5, category: "安全阀", lastInspectionDate: "2025-07-03", inspectionCycle: 12,
+    responsiblePerson: "张主任", riskLevel: "高", status: "紧急",
+    measures: ["工程：安排紧急检验", "管理：上报公司领导", "应急：研判是否停车"],
+  },
+  {
+    id: "exp-004", name: "E区-3#烟雾报警器", location: "E区配电室", deadline: "2026-06-28",
+    daysRemaining: 0, category: "报警器", lastInspectionDate: "2025-06-28", inspectionCycle: 12,
+    responsiblePerson: "刘电工", riskLevel: "高", status: "已过期",
+    measures: ["应急：立即停车检查", "管理：全员告警", "工程：联系检验机构"],
+  },
+  {
+    id: "exp-005", name: "D区-1#消防栓", location: "D区走廊", deadline: "2026-07-22",
+    daysRemaining: 24, category: "消防设备", lastInspectionDate: "2025-07-22", inspectionCycle: 12,
+    responsiblePerson: "王运维", riskLevel: "低", status: "正常",
+    measures: ["工程：水压测试", "培训：消防演练", "管理：台账更新"],
+  },
+  {
+    id: "exp-006", name: "A区-2#CO感应器", location: "A区地下车库", deadline: "2026-07-08",
+    daysRemaining: 10, category: "气体感应器", lastInspectionDate: "2025-07-08", inspectionCycle: 12,
+    responsiblePerson: "李安全", riskLevel: "中", status: "临近到期",
+    measures: ["工程：标定校准", "技术：接入监控系统", "管理：安排检验计划"],
+  },
 ]
 
 // 任务池（含未在 seedTasksExt 中的占位任务）
@@ -387,4 +524,9 @@ export const seedTaskPool = [
   { tk: "task-b-security", name: "主干道例行安防护卫", bot: "robot-east-1", state: "running" as const, prog: "60%" },
   { tk: "task-a-morning", name: "A区晨检", bot: "robot-center-1", state: "completed" as const, prog: "100%" },
   { tk: "task-c-night", name: "C区夜间覆盖", bot: "待调拨", state: "pending" as const, prog: "0%" },
+  { tk: "task-d-tank", name: "储罐区T-305监护", bot: "robot-north-1", state: "running" as const, prog: "78%" },
+  { tk: "task-e-valve", name: "E区阀门法兰复查", bot: "robot-east-1", state: "pending" as const, prog: "0%" },
+  { tk: "task-a-pipe", name: "A区管廊泄漏排查", bot: "robot-center-1", state: "completed" as const, prog: "100%" },
+  { tk: "task-b-power", name: "B区配电室特巡", bot: "待调拨", state: "pending" as const, prog: "0%" },
+  { tk: "task-c-compressor", name: "C区压缩机振动监测", bot: "robot-north-1", state: "running" as const, prog: "45%" },
 ]
