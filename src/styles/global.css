@@ -30,10 +30,21 @@
 
   /* 字体 */
   --hud-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-  --hud-text-font: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --hud-text-font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+
+  /* 动效 */
+  --page-motion-duration: 420ms;
+  --page-motion-easing: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-weight: normal;
+}
 
 /* 分层适配：UI 层由 ScaleContainer 用 transform: scale 锁定 1920×1080
  * 根字号固定 100px = 1rem，不再随视口动态变化（避免 rem 与 scale 双重缩放冲突）
@@ -47,9 +58,12 @@ html, body, #app {
   background: var(--hud-bg-deep);
   color: var(--hud-text);
   font-family: var(--hud-text-font);
+  line-height: 1.6;
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  transition: color 0.3s ease, background-color 0.3s ease;
 }
 
 #app { position: relative; }
@@ -59,6 +73,31 @@ html, body, #app {
 *::-webkit-scrollbar { width: 0; height: 0; background: transparent; }
 *::-webkit-scrollbar-track { background: transparent; }
 *::-webkit-scrollbar-thumb { background: transparent; }
+
+/* 链接样式 */
+a { text-decoration: none; color: var(--hud-accent); transition: color 0.25s ease; }
+a:hover { color: #d4c08f; }
+
+/* 页面入场动画 —— 参考设计框架 page-enter 动效 */
+[class$="-page"],
+.hud-stage,
+.app-root {
+  animation: pageEnter var(--page-motion-duration) var(--page-motion-easing) both;
+}
+@keyframes pageEnter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 卡片悬浮微动效 */
+.card {
+  transition: transform 0.24s ease, box-shadow 0.24s ease, border-color 0.24s ease;
+}
+.card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), 0 0 12px rgba(197, 168, 123, 0.04);
+  border-color: rgba(107, 142, 173, 0.28);
+}
 
 /* 通用：面板标题前置蓝色竖条 */
 .panel-title,
@@ -267,4 +306,17 @@ html, body, #app {
 /* 切换动画 */
 .v-enter-active, .v-leave-active { transition: opacity 0.2s ease, transform 0.2s ease; }
 .v-enter-from, .v-leave-to { opacity: 0; transform: translateY(0.0600rem); }
+
+/* 可访问性：用户偏好减少动效
+ * 尊重系统无障碍设置，降低动画/过渡对前庭障碍用户的影响 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
 
